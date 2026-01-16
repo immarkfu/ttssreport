@@ -15,6 +15,7 @@ import { b1SignalList, s1SignalList } from '@/data/mockData';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -36,7 +37,12 @@ export default function Home() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* 左侧导航栏 */}
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <Sidebar 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
 
       {/* 主内容区域 */}
       <div className="flex-1 flex flex-col">

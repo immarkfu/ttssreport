@@ -1,6 +1,6 @@
 /**
  * 信号详情视图组件 - 左表右图联动
- * 设计风格：功能主义 - 40%表格 + 60%图表
+ * 设计风格：功能主义 - 表格完整显示 + 紧凑图表
  */
 
 import { useState, useEffect } from 'react';
@@ -44,8 +44,8 @@ export default function SignalDetailView({ signals, type }: SignalDetailViewProp
 
   return (
     <div className="flex gap-4 h-[calc(100vh-180px)]">
-      {/* 左侧：信号列表表格 (40%) */}
-      <div className="w-2/5">
+      {/* 左侧：信号列表表格 (55%) - 确保表格完整显示 */}
+      <div className="w-[55%]">
         <SignalTable
           signals={signals}
           selectedId={selectedSignal?.id || null}
@@ -54,8 +54,8 @@ export default function SignalDetailView({ signals, type }: SignalDetailViewProp
         />
       </div>
 
-      {/* 右侧：K线图区域 (60%) */}
-      <div className="w-3/5 flex flex-col gap-4">
+      {/* 右侧：K线图区域 (45%) - 紧凑布局 */}
+      <div className="w-[45%] flex flex-col gap-3">
         {/* 指标切换 */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
@@ -76,7 +76,7 @@ export default function SignalDetailView({ signals, type }: SignalDetailViewProp
           </Tabs>
         </div>
 
-        {/* K线图 */}
+        {/* K线图 - 占满剩余空间 */}
         <div className="flex-1">
           <KLineChart
             data={klineData}
@@ -85,32 +85,6 @@ export default function SignalDetailView({ signals, type }: SignalDetailViewProp
             indicator={indicator}
           />
         </div>
-
-        {/* 信号详情卡片 */}
-        {selectedSignal && (
-          <div className="bg-card rounded-lg border border-border/50 p-4">
-            <div className="grid grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">触发时间</span>
-                <p className="font-mono mt-1">{selectedSignal.triggerTime}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">成交量</span>
-                <p className="font-mono mt-1">{(selectedSignal.volume / 10000).toFixed(0)}万手</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">所属行业</span>
-                <p className="mt-1">{selectedSignal.industry}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">信号类型</span>
-                <p className={`mt-1 font-medium ${type === 'B1' ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {type === 'B1' ? '观察信号' : '卖出信号'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

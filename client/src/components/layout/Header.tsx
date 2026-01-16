@@ -3,7 +3,7 @@
  * 设计风格：功能主义 - 信息清晰展示
  */
 
-import { Calendar, Database, AlertTriangle } from 'lucide-react';
+import { Calendar, AlertTriangle } from 'lucide-react';
 
 interface HeaderProps {
   currentDate?: string;
@@ -18,18 +18,10 @@ export default function Header({ currentDate }: HeaderProps) {
 
   return (
     <header className="h-14 bg-card border-b border-border flex items-center justify-between px-6">
-      {/* 左侧：数据源信息 */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 text-sm">
-          <Database className="w-4 h-4 text-emerald-500" />
-          <span className="text-muted-foreground">数据源:</span>
-          <span className="font-medium">Tushare / 扣子工作流</span>
-        </div>
-        <div className="h-4 w-px bg-border" />
-        <div className="flex items-center gap-2 text-sm">
-          <Calendar className="w-4 h-4 text-muted-foreground" />
-          <span className="font-mono">{today}</span>
-        </div>
+      {/* 左侧：日期信息 */}
+      <div className="flex items-center gap-2 text-sm">
+        <Calendar className="w-4 h-4 text-muted-foreground" />
+        <span className="font-mono">{today}</span>
       </div>
 
       {/* 右侧：合规提醒 */}
