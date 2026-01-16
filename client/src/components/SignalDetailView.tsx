@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { StockSignal, stockKLineDataMap, generateKLineData } from '@/data/mockData';
+import { StockSignal, generateKLineData } from '@/data/mockData';
 import SignalTable from './SignalTable';
 import KLineChart from './charts/KLineChart';
 
@@ -36,7 +36,7 @@ export default function SignalDetailView({
   // 当选中的股票变化时，更新K线数据
   useEffect(() => {
     if (selectedSignal) {
-      const data = stockKLineDataMap[selectedSignal.code] || generateKLineData(selectedSignal.price);
+      const data = generateKLineData(selectedSignal.price);
       setKlineData(data);
     } else {
       setKlineData([]);

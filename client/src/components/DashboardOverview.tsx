@@ -4,7 +4,7 @@
  * 支持卡片下钻：今日B1 -> B1观察页面，持仓卖出预警 -> S1卖出页面
  */
 
-import { marketOverview, signalDistribution, industryDistribution } from '@/data/mockData';
+import { marketOverview, signalDistribution } from '@/data/mockData';
 import StatCard from './StatCard';
 import {
   TrendingUp,
@@ -195,49 +195,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
             </div>
           </div>
 
-          {/* 行业板块分布 */}
-          <div className="bg-card rounded-lg border border-border/50 p-5">
-            <p className="text-xs text-muted-foreground mb-3">行业板块分布 (Industry Focus)</p>
-            
-            <div className="h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={industryDistribution}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={50}
-                    dataKey="value"
-                  >
-                    {industryDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => [`${value}%`, '']}
-                    contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2 text-xs">
-              {industryDistribution.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5">
-                  <span
-                    className="w-2 h-2 rounded-sm"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-muted-foreground truncate">{item.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 

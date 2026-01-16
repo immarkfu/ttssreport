@@ -51,12 +51,18 @@ const mockObservationStocks: ObservationStock[] = [
 type Period = 5 | 10 | 20;
 const PAGE_SIZE = 10;
 
-export default function ObservationDashboard() {
+interface ObservationDashboardProps {
+  backtestPool: Set<string>;
+}
+
+export default function ObservationDashboard({ backtestPool }: ObservationDashboardProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>(5);
   const [selectedStock, setSelectedStock] = useState<ObservationStock | null>(
     mockObservationStocks[0] || null
   );
-  const [stocks] = useState<ObservationStock[]>(mockObservationStocks);
+  // 仅显示加入观察池的股票
+  const observationStocks = mockObservationStocks.filter(stock => backtestPool.has(stock.code));
+  const [stocks] = useState<ObservationStock[]>(observationStocks);
   const [currentPage, setCurrentPage] = useState(1);
 
   // 分页逻辑

@@ -125,7 +125,7 @@ export default function Home() {
           />
         );
       case 'observation':
-        return <ObservationDashboard />;
+        return <ObservationDashboard backtestPool={backtestPool} />;
       case 'config':
         return <ConfigView />;
       default:

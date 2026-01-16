@@ -43,3 +43,7 @@
 - [x] Observation dashboard: Rename to "Personal Observation Pool"
 - [x] Observation dashboard: Add display tags column with 4-column layout
 - [x] Observation dashboard: Add pagination
+- [x] Increase mock data to 30+ stocks to test pagination
+- [x] Add 5-8 display factors for some stocks to test multi-row layout
+- [x] Make observation dashboard empty by default
+- [ ] Implement "Add to Observation" button functionality to sync with observation dashboard
