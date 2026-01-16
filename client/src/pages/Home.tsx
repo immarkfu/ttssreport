@@ -4,7 +4,7 @@
  * 核心理念：踏踏实实、知行合一、Love & Share
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
@@ -16,11 +16,45 @@ import { b1SignalList, s1SignalList } from '@/data/mockData';
 import { getLoginUrl } from '@/const';
 import { Button } from '@/components/ui/button';
 import { LogIn, Loader2 } from 'lucide-react';
+import { trpc } from '@/lib/trpc';
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  // 回测池状态 - 存储选中的股票代码
+  const [backtestPool, setBacktestPool] = useState<Set<string>>(new Set());
+
+  // 从服务器加载回测池数据
+  const { data: savedBacktestPool } = trpc.config.getBacktestPool.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
+
+  // 保存回测池到服务器
+  const saveBacktestPoolMutation = trpc.config.saveBacktestPool.useMutation();
+
+  // 初始化回测池数据
+  useEffect(() => {
+    if (savedBacktestPool) {
+      setBacktestPool(new Set(savedBacktestPool));
+    }
+  }, [savedBacktestPool]);
+
+  // 处理回测池变更
+  const handleBacktestPoolChange = (code: string, checked: boolean) => {
+    setBacktestPool(prev => {
+      const newPool = new Set(prev);
+      if (checked) {
+        newPool.add(code);
+      } else {
+        newPool.delete(code);
+      }
+      // 保存到服务器
+      saveBacktestPoolMutation.mutate({ codes: Array.from(newPool) });
+      return newPool;
+    });
+  };
 
   // 处理导航（包括仪表盘卡片下钻）
   const handleNavigate = (tab: string) => {
@@ -73,11 +107,25 @@ export default function Home() {
       case 'dashboard':
         return <DashboardOverview onNavigate={handleNavigate} />;
       case 'b1-signals':
-        return <SignalDetailView signals={b1SignalList} type="B1" />;
+        return (
+          <SignalDetailView 
+            signals={b1SignalList} 
+            type="B1" 
+            backtestPool={backtestPool}
+            onBacktestPoolChange={handleBacktestPoolChange}
+          />
+        );
       case 's1-signals':
-        return <SignalDetailView signals={s1SignalList} type="S1" />;
+        return (
+          <SignalDetailView 
+            signals={s1SignalList} 
+            type="S1" 
+            backtestPool={backtestPool}
+            onBacktestPoolChange={handleBacktestPoolChange}
+          />
+        );
       case 'backtest':
-        return <BacktestView />;
+        return <BacktestView backtestPool={backtestPool} />;
       case 'config':
         return <ConfigView />;
       default:

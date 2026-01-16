@@ -1,6 +1,7 @@
 /**
  * K线图组件 - 使用 lightweight-charts v5
- * 设计风格：功能主义 - 形式追随功能
+ * 布局：主图 + 成交量 + KDJ（重点体现J值）
+ * 设计风格：功能主义 - 白色底色，清晰的数据展示
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -14,24 +15,26 @@ import {
   HistogramSeries,
   CandlestickSeries,
 } from 'lightweight-charts';
-import { KLineData, calculateKDJ, calculateMACD } from '@/data/mockData';
+import { KLineData, calculateKDJ } from '@/data/mockData';
 
 interface KLineChartProps {
   data: KLineData[];
   stockName?: string;
   stockCode?: string;
-  indicator: 'kdj' | 'macd' | 'volume';
 }
 
-export default function KLineChart({ data, stockName, stockCode, indicator }: KLineChartProps) {
+export default function KLineChart({ data, stockName, stockCode }: KLineChartProps) {
   const mainChartRef = useRef<HTMLDivElement>(null);
-  const subChartRef = useRef<HTMLDivElement>(null);
+  const volumeChartRef = useRef<HTMLDivElement>(null);
+  const kdjChartRef = useRef<HTMLDivElement>(null);
   const mainChart = useRef<IChartApi | null>(null);
-  const subChart = useRef<IChartApi | null>(null);
+  const volumeChart = useRef<IChartApi | null>(null);
+  const kdjChart = useRef<IChartApi | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [kdjValues, setKdjValues] = useState<{ k: number; d: number; j: number } | null>(null);
 
   useEffect(() => {
-    if (!mainChartRef.current || !subChartRef.current || data.length === 0) return;
+    if (!mainChartRef.current || !volumeChartRef.current || !kdjChartRef.current || data.length === 0) return;
 
     setIsLoading(true);
 
@@ -40,55 +43,60 @@ export default function KLineChart({ data, stockName, stockCode, indicator }: KL
       mainChart.current.remove();
       mainChart.current = null;
     }
-    if (subChart.current) {
-      subChart.current.remove();
-      subChart.current = null;
+    if (volumeChart.current) {
+      volumeChart.current.remove();
+      volumeChart.current = null;
+    }
+    if (kdjChart.current) {
+      kdjChart.current.remove();
+      kdjChart.current = null;
     }
 
-    // 图表通用配置
+    // 图表通用配置 - 白色底色
     const chartOptions = {
       layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#64748B',
+        background: { type: ColorType.Solid, color: '#FFFFFF' },
+        textColor: '#333333',
         fontFamily: "'Inter', 'Noto Sans SC', sans-serif",
       },
       grid: {
-        vertLines: { color: '#E2E8F0', style: 1 as const },
-        horzLines: { color: '#E2E8F0', style: 1 as const },
+        vertLines: { color: '#E5E5E5', style: 1 as const },
+        horzLines: { color: '#E5E5E5', style: 1 as const },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
-          color: '#94A3B8',
+          color: '#666666',
           width: 1 as const,
           style: 2 as const,
-          labelBackgroundColor: '#334155',
+          labelBackgroundColor: '#333333',
         },
         horzLine: {
-          color: '#94A3B8',
+          color: '#666666',
           width: 1 as const,
           style: 2 as const,
-          labelBackgroundColor: '#334155',
+          labelBackgroundColor: '#333333',
         },
       },
       timeScale: {
-        borderColor: '#E2E8F0',
+        borderColor: '#CCCCCC',
         timeVisible: true,
         secondsVisible: false,
+        visible: false, // 只在最后一个图表显示时间轴
       },
       rightPriceScale: {
-        borderColor: '#E2E8F0',
+        borderColor: '#CCCCCC',
       },
     };
 
-    // 创建主图表 (K线)
+    // 创建主图表 (K线 + 均线)
     mainChart.current = createChart(mainChartRef.current, {
       ...chartOptions,
       width: mainChartRef.current.clientWidth,
-      height: 320,
+      height: 200,
     });
 
-    // 添加K线系列 (v5 API)
+    // 添加K线系列
     const candlestickSeries = mainChart.current.addSeries(CandlestickSeries, {
       upColor: '#DC2626',
       downColor: '#22C55E',
@@ -109,92 +117,125 @@ export default function KLineChart({ data, stockName, stockCode, indicator }: KL
 
     candlestickSeries.setData(candleData);
 
-    // 创建副图表 (指标)
-    subChart.current = createChart(subChartRef.current, {
-      ...chartOptions,
-      width: subChartRef.current.clientWidth,
-      height: 150,
+    // 添加均线 (MA5, MA10, MA20)
+    const ma5Series = mainChart.current.addSeries(LineSeries, {
+      color: '#FFFFFF',
+      lineWidth: 1,
+      title: 'MA5',
+    });
+    const ma10Series = mainChart.current.addSeries(LineSeries, {
+      color: '#F59E0B',
+      lineWidth: 1,
+      title: 'MA10',
     });
 
-    // 根据选择的指标添加不同的系列
-    if (indicator === 'kdj') {
-      const kdjData = calculateKDJ(data);
-      
-      const kSeries = subChart.current.addSeries(LineSeries, {
-        color: '#3B82F6',
-        lineWidth: 1,
-        title: 'K',
-      });
-      const dSeries = subChart.current.addSeries(LineSeries, {
-        color: '#F59E0B',
-        lineWidth: 1,
-        title: 'D',
-      });
-      const jSeries = subChart.current.addSeries(LineSeries, {
-        color: '#8B5CF6',
-        lineWidth: 1,
-        title: 'J',
-      });
+    // 计算均线
+    const calculateMA = (period: number) => {
+      return data.map((d, i) => {
+        if (i < period - 1) return { time: d.time, value: NaN };
+        const sum = data.slice(i - period + 1, i + 1).reduce((acc, item) => acc + item.close, 0);
+        return { time: d.time, value: sum / period };
+      }).filter(d => !isNaN(d.value));
+    };
 
-      kSeries.setData(kdjData.map(d => ({ time: d.time, value: d.k! })));
-      dSeries.setData(kdjData.map(d => ({ time: d.time, value: d.d! })));
-      jSeries.setData(kdjData.map(d => ({ time: d.time, value: d.j! })));
-    } else if (indicator === 'macd') {
-      const macdData = calculateMACD(data);
-      
-      const macdSeries = subChart.current.addSeries(LineSeries, {
-        color: '#3B82F6',
-        lineWidth: 1,
-        title: 'DIF',
-      });
-      const signalSeries = subChart.current.addSeries(LineSeries, {
-        color: '#F59E0B',
-        lineWidth: 1,
-        title: 'DEA',
-      });
-      const histogramSeries = subChart.current.addSeries(HistogramSeries, {
-        title: 'MACD',
-      });
+    ma5Series.setData(calculateMA(5));
+    ma10Series.setData(calculateMA(10));
 
-      macdSeries.setData(macdData.map(d => ({ time: d.time, value: d.macd! })));
-      signalSeries.setData(macdData.map(d => ({ time: d.time, value: d.signal! })));
-      histogramSeries.setData(macdData.map(d => ({
-        time: d.time,
-        value: d.histogram!,
-        color: d.histogram! >= 0 ? '#DC2626' : '#22C55E',
-      })));
-    } else {
-      // 成交量
-      const volumeSeries = subChart.current.addSeries(HistogramSeries, {
-        title: 'VOL',
-        priceFormat: {
-          type: 'volume',
-        },
-      });
+    // 创建成交量图表
+    volumeChart.current = createChart(volumeChartRef.current, {
+      ...chartOptions,
+      width: volumeChartRef.current.clientWidth,
+      height: 80,
+    });
 
-      volumeSeries.setData(data.map((d, i) => ({
-        time: d.time,
-        value: d.volume,
-        color: i > 0 && d.close >= data[i - 1].close ? '#DC2626' : '#22C55E',
-      })));
+    const volumeSeries = volumeChart.current.addSeries(HistogramSeries, {
+      priceFormat: {
+        type: 'volume',
+      },
+    });
+
+    volumeSeries.setData(data.map((d, i) => ({
+      time: d.time,
+      value: d.volume,
+      color: i > 0 && d.close >= data[i - 1].close ? '#DC2626' : '#22C55E',
+    })));
+
+    // 创建KDJ图表
+    kdjChart.current = createChart(kdjChartRef.current, {
+      ...chartOptions,
+      width: kdjChartRef.current.clientWidth,
+      height: 100,
+      timeScale: {
+        ...chartOptions.timeScale,
+        visible: true, // 只在KDJ图表显示时间轴
+      },
+    });
+
+    const kdjData = calculateKDJ(data);
+
+    // K线 - 蓝色
+    const kSeries = kdjChart.current.addSeries(LineSeries, {
+      color: '#3B82F6',
+      lineWidth: 1,
+      title: 'K',
+    });
+    // D线 - 黄色
+    const dSeries = kdjChart.current.addSeries(LineSeries, {
+      color: '#F59E0B',
+      lineWidth: 1,
+      title: 'D',
+    });
+    // J线 - 紫色，加粗突出显示
+    const jSeries = kdjChart.current.addSeries(LineSeries, {
+      color: '#8B5CF6',
+      lineWidth: 2,
+      title: 'J',
+    });
+
+    kSeries.setData(kdjData.map(d => ({ time: d.time, value: d.k! })));
+    dSeries.setData(kdjData.map(d => ({ time: d.time, value: d.d! })));
+    jSeries.setData(kdjData.map(d => ({ time: d.time, value: d.j! })));
+
+    // 设置最新KDJ值
+    if (kdjData.length > 0) {
+      const latest = kdjData[kdjData.length - 1];
+      setKdjValues({
+        k: Math.round(latest.k! * 100) / 100,
+        d: Math.round(latest.d! * 100) / 100,
+        j: Math.round(latest.j! * 100) / 100,
+      });
     }
 
-    // 同步两个图表的时间轴
-    mainChart.current.timeScale().subscribeVisibleLogicalRangeChange(range => {
-      if (range && subChart.current) {
-        subChart.current.timeScale().setVisibleLogicalRange(range);
-      }
-    });
+    // 同步三个图表的时间轴
+    const syncTimeScales = () => {
+      mainChart.current?.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (range) {
+          volumeChart.current?.timeScale().setVisibleLogicalRange(range);
+          kdjChart.current?.timeScale().setVisibleLogicalRange(range);
+        }
+      });
 
-    subChart.current.timeScale().subscribeVisibleLogicalRangeChange(range => {
-      if (range && mainChart.current) {
-        mainChart.current.timeScale().setVisibleLogicalRange(range);
-      }
-    });
+      volumeChart.current?.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (range) {
+          mainChart.current?.timeScale().setVisibleLogicalRange(range);
+          kdjChart.current?.timeScale().setVisibleLogicalRange(range);
+        }
+      });
+
+      kdjChart.current?.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (range) {
+          mainChart.current?.timeScale().setVisibleLogicalRange(range);
+          volumeChart.current?.timeScale().setVisibleLogicalRange(range);
+        }
+      });
+    };
+
+    syncTimeScales();
 
     // 自适应宽度
     mainChart.current.timeScale().fitContent();
-    subChart.current.timeScale().fitContent();
+    volumeChart.current.timeScale().fitContent();
+    kdjChart.current.timeScale().fitContent();
 
     setIsLoading(false);
 
@@ -203,8 +244,11 @@ export default function KLineChart({ data, stockName, stockCode, indicator }: KL
       if (mainChartRef.current && mainChart.current) {
         mainChart.current.applyOptions({ width: mainChartRef.current.clientWidth });
       }
-      if (subChartRef.current && subChart.current) {
-        subChart.current.applyOptions({ width: subChartRef.current.clientWidth });
+      if (volumeChartRef.current && volumeChart.current) {
+        volumeChart.current.applyOptions({ width: volumeChartRef.current.clientWidth });
+      }
+      if (kdjChartRef.current && kdjChart.current) {
+        kdjChart.current.applyOptions({ width: kdjChartRef.current.clientWidth });
       }
     };
 
@@ -216,91 +260,88 @@ export default function KLineChart({ data, stockName, stockCode, indicator }: KL
         mainChart.current.remove();
         mainChart.current = null;
       }
-      if (subChart.current) {
-        subChart.current.remove();
-        subChart.current = null;
+      if (volumeChart.current) {
+        volumeChart.current.remove();
+        volumeChart.current = null;
+      }
+      if (kdjChart.current) {
+        kdjChart.current.remove();
+        kdjChart.current = null;
       }
     };
-  }, [data, indicator]);
-
-  const indicatorLabels = {
-    kdj: 'KDJ指标',
-    macd: 'MACD指标',
-    volume: '成交量',
-  };
+  }, [data]);
 
   return (
-    <div className="bg-card rounded-lg border border-border/50 overflow-hidden">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* 图表头部 */}
-      <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {stockCode && stockName ? (
-            <>
-              <span className="font-mono text-sm text-muted-foreground">{stockCode}</span>
-              <span className="font-medium">{stockName}</span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">请选择股票查看K线</span>
-          )}
-        </div>
-        <div className="text-xs text-muted-foreground">
-          日K线 · {indicatorLabels[indicator]}
+      <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {stockCode && stockName ? (
+              <>
+                <span className="font-mono text-sm text-gray-600">{stockCode}</span>
+                <span className="font-medium text-gray-900">{stockName}</span>
+              </>
+            ) : (
+              <span className="text-gray-500">请选择股票查看K线</span>
+            )}
+          </div>
+          <span className="text-xs text-gray-500">日K线</span>
         </div>
       </div>
 
       {/* K线主图 */}
-      <div className="relative">
+      <div className="relative border-b border-gray-100">
         {isLoading && data.length > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
+            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         )}
-        <div ref={mainChartRef} className="w-full" style={{ height: 320 }} />
+        <div className="px-1 py-1 text-xs text-gray-500 flex items-center gap-3">
+          <span>主图</span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-0.5 bg-white border border-gray-300" />MA5
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-0.5 bg-amber-500" />MA10
+          </span>
+        </div>
+        <div ref={mainChartRef} className="w-full" style={{ height: 200 }} />
       </div>
 
-      {/* 指标副图 */}
-      <div className="border-t border-border/50">
-        <div ref={subChartRef} className="w-full" style={{ height: 150 }} />
+      {/* 成交量图 */}
+      <div className="border-b border-gray-100">
+        <div className="px-1 py-1 text-xs text-gray-500 flex items-center gap-3">
+          <span>VOL</span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-red-500" />涨
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 bg-green-500" />跌
+          </span>
+        </div>
+        <div ref={volumeChartRef} className="w-full" style={{ height: 80 }} />
       </div>
 
-      {/* 图例 */}
-      <div className="px-4 py-2 border-t border-border/50 flex items-center gap-4 text-xs">
-        {indicator === 'kdj' && (
-          <>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-blue-500" />K
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-amber-500" />D
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-purple-500" />J
-            </span>
-          </>
-        )}
-        {indicator === 'macd' && (
-          <>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-blue-500" />DIF
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-amber-500" />DEA
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-1 bg-red-500" />MACD柱
-            </span>
-          </>
-        )}
-        {indicator === 'volume' && (
-          <>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-2 bg-red-500" />上涨
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-2 bg-green-500" />下跌
-            </span>
-          </>
-        )}
+      {/* KDJ指标图 */}
+      <div>
+        <div className="px-1 py-1 text-xs text-gray-500 flex items-center gap-3">
+          <span>KDJ(9,3,3)</span>
+          {kdjValues && (
+            <>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-0.5 bg-blue-500" />K: <span className="text-blue-600">{kdjValues.k}</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-0.5 bg-amber-500" />D: <span className="text-amber-600">{kdjValues.d}</span>
+              </span>
+              <span className="flex items-center gap-1 font-medium">
+                <span className="w-2 h-1 bg-purple-500" />J: <span className="text-purple-600">{kdjValues.j}</span>
+              </span>
+            </>
+          )}
+        </div>
+        <div ref={kdjChartRef} className="w-full" style={{ height: 100 }} />
       </div>
     </div>
   );

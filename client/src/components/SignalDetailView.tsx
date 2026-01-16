@@ -1,22 +1,27 @@
 /**
  * 信号详情视图组件 - 左表右图联动
- * 设计风格：功能主义 - 表格完整显示 + 紧凑图表
+ * 设计风格：功能主义 - 表格完整显示 + 主图+成交量+KDJ三区图表
  */
 
 import { useState, useEffect } from 'react';
 import { StockSignal, stockKLineDataMap, generateKLineData } from '@/data/mockData';
 import SignalTable from './SignalTable';
 import KLineChart from './charts/KLineChart';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface SignalDetailViewProps {
   signals: StockSignal[];
   type: 'B1' | 'S1';
+  backtestPool: Set<string>;
+  onBacktestPoolChange: (code: string, checked: boolean) => void;
 }
 
-export default function SignalDetailView({ signals, type }: SignalDetailViewProps) {
+export default function SignalDetailView({ 
+  signals, 
+  type, 
+  backtestPool, 
+  onBacktestPoolChange 
+}: SignalDetailViewProps) {
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
-  const [indicator, setIndicator] = useState<'kdj' | 'macd' | 'volume'>('kdj');
   const [klineData, setKlineData] = useState<ReturnType<typeof generateKLineData>>([]);
 
   // 当signals或type变化时，重置选中状态为第一只股票
@@ -51,38 +56,30 @@ export default function SignalDetailView({ signals, type }: SignalDetailViewProp
           selectedId={selectedSignal?.id || null}
           onSelect={handleSelectSignal}
           type={type}
+          backtestPool={backtestPool}
+          onBacktestPoolChange={onBacktestPoolChange}
         />
       </div>
 
-      {/* 右侧：K线图区域 (45%) - 紧凑布局 */}
-      <div className="w-[45%] flex flex-col gap-3">
-        {/* 指标切换 */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            {selectedSignal ? (
-              <span>
-                触发条件: <span className="text-foreground font-medium">{selectedSignal.triggerCondition}</span>
-              </span>
-            ) : (
-              '请选择股票查看详情'
-            )}
-          </div>
-          <Tabs value={indicator} onValueChange={(v) => setIndicator(v as typeof indicator)}>
-            <TabsList className="h-8">
-              <TabsTrigger value="kdj" className="text-xs px-3 h-7">KDJ</TabsTrigger>
-              <TabsTrigger value="macd" className="text-xs px-3 h-7">MACD</TabsTrigger>
-              <TabsTrigger value="volume" className="text-xs px-3 h-7">成交量</TabsTrigger>
-            </TabsList>
-          </Tabs>
+      {/* 右侧：K线图区域 (45%) - 主图+成交量+KDJ三区布局 */}
+      <div className="w-[45%] flex flex-col gap-2">
+        {/* 触发条件信息 */}
+        <div className="text-sm text-muted-foreground">
+          {selectedSignal ? (
+            <span>
+              触发条件: <span className="text-foreground font-medium">{selectedSignal.triggerCondition}</span>
+            </span>
+          ) : (
+            '请选择股票查看详情'
+          )}
         </div>
 
-        {/* K线图 - 占满剩余空间 */}
+        {/* K线图 - 主图+成交量+KDJ */}
         <div className="flex-1">
           <KLineChart
             data={klineData}
             stockName={selectedSignal?.name}
             stockCode={selectedSignal?.code}
-            indicator={indicator}
           />
         </div>
       </div>

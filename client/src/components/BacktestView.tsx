@@ -16,9 +16,14 @@ import {
   Bar,
   Cell,
 } from 'recharts';
-import { Calendar, TrendingUp, Target, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { b1SignalList, s1SignalList } from '@/data/mockData';
+
+interface BacktestViewProps {
+  backtestPool: Set<string>;
+}
 
 // 模拟回测数据
 const backtestData = {
@@ -55,8 +60,13 @@ const backtestData = {
   ],
 };
 
-export default function BacktestView() {
+export default function BacktestView({ backtestPool }: BacktestViewProps) {
   const [dateRange, setDateRange] = useState('6m');
+
+  // 获取回测池中的股票信息
+  const backtestStocks = [...b1SignalList, ...s1SignalList].filter(
+    (stock) => backtestPool.has(stock.code)
+  );
 
   const handleExport = () => {
     toast.info('功能开发中', {
@@ -94,6 +104,43 @@ export default function BacktestView() {
             导出报告
           </Button>
         </div>
+      </div>
+
+      {/* 回测池股票列表 */}
+      <div className="bg-card rounded-lg border border-border/50 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-medium text-sm">回测池股票</h3>
+          <Badge variant="outline" className="text-xs">
+            {backtestPool.size} 只股票
+          </Badge>
+        </div>
+        {backtestPool.size === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            暂无股票加入回测池，请在B1观察提醒或S1卖出提醒页面勾选股票
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {backtestStocks.map((stock) => (
+              <div
+                key={stock.code}
+                className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 rounded-md text-sm"
+              >
+                <span className="font-mono text-xs text-muted-foreground">{stock.code}</span>
+                <span className="font-medium">{stock.name}</span>
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs ${
+                    stock.signalType === 'B1' 
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                      : 'bg-red-50 text-red-600 border-red-200'
+                  }`}
+                >
+                  {stock.signalType}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 核心指标卡片 */}

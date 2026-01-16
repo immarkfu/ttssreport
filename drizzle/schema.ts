@@ -48,6 +48,7 @@ export const userConfigs = mysqlTable("user_configs", {
   // 监控池配置 - 使用text存储JSON字符串
   watchlistStocks: text("watchlistStocks"), // 自选股列表 JSON字符串
   excludedIndustries: text("excludedIndustries"), // 排除行业 JSON字符串
+  backtestPool: text("backtestPool"), // 回测池股票代码 JSON字符串
   
   // 时间戳
   createdAt: timestamp("createdAt").defaultNow().notNull(),

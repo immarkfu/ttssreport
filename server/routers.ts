@@ -65,6 +65,29 @@ export const appRouter = router({
       const updatedConfig = await upsertUserConfig(ctx.user.id, defaultConfig);
       return updatedConfig;
     }),
+
+    // 获取回测池股票列表
+    getBacktestPool: protectedProcedure.query(async ({ ctx }) => {
+      const config = await getUserConfig(ctx.user.id);
+      if (config?.backtestPool) {
+        try {
+          return JSON.parse(config.backtestPool) as string[];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    }),
+
+    // 保存回测池股票列表
+    saveBacktestPool: protectedProcedure
+      .input(z.object({ codes: z.array(z.string()) }))
+      .mutation(async ({ ctx, input }) => {
+        await upsertUserConfig(ctx.user.id, {
+          backtestPool: JSON.stringify(input.codes),
+        });
+        return { success: true };
+      }),
   }),
 });
 

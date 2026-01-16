@@ -19,3 +19,9 @@
 - [ ] Connect to real data API (Tushare/Coze workflow)
 - [ ] Historical signal query with date picker
 - [ ] Stock search functionality
+- [x] Optimize chart layout (main chart + volume + KDJ with J emphasis, white background)
+- [x] Add table pagination
+- [x] Add industry as separate column
+- [x] Add table sorting by column headers
+- [x] Add "Add to backtest pool" checkbox column
+- [x] Link backtest pool selection to backtest analysis page
