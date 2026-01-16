@@ -42,7 +42,7 @@ const navItems = [
   { id: 'b1-signals', label: '每日B1观察提醒', icon: TrendingUp },
   { id: 's1-signals', label: '每日S1卖出提醒', icon: TrendingDown },
   { id: 'observation', label: '观察分析看板', icon: BarChart3 },
-  { id: 'config', label: 'D战法配置', icon: Settings },
+  { id: 'config', label: 'TTSS战法配置', icon: Settings },
 ];
 
 export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse, user, onLogout }: SidebarProps) {

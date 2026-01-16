@@ -1,5 +1,5 @@
 /**
- * D战法配置视图组件
+ * TTSS战法配置视图组件
  * 设计风格：功能主义 - 参数配置界面
  * 支持用户个性化配置存储
  */
@@ -136,7 +136,7 @@ export default function ConfigView() {
     <div className="space-y-6 max-w-4xl">
       {/* 页面标题 */}
       <div>
-        <h2 className="text-xl font-semibold">D战法配置</h2>
+        <h2 className="text-xl font-semibold">TTSS战法配置</h2>
         <p className="text-sm text-muted-foreground mt-1">
           调整量化策略的核心参数（配置将自动保存到您的账户）
         </p>
