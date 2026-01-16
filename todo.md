@@ -1,0 +1,21 @@
+# Project TODO
+
+- [x] Basic homepage layout
+- [x] Navigation menu with sidebar
+- [x] Dashboard overview page
+- [x] B1 observation signal page with left table right chart layout
+- [x] S1 sell signal page with left table right chart layout
+- [x] K-line chart component with KDJ/MACD/Volume indicators
+- [x] Backtest analysis page
+- [x] D strategy configuration page
+- [x] Compliance disclaimer and risk warnings
+- [x] Flat design style implementation
+- [x] Sidebar collapse/expand functionality
+- [x] Update B1/S1 table headers (code, name, price, change%, strength, display factors)
+- [x] Dashboard card drill-down navigation
+- [x] Upgrade to full-stack project with database
+- [x] User authentication system (login/logout)
+- [x] User-specific D strategy configuration storage
+- [ ] Connect to real data API (Tushare/Coze workflow)
+- [ ] Historical signal query with date picker
+- [ ] Stock search functionality

@@ -1,55 +1,136 @@
 /**
  * D战法配置视图组件
  * 设计风格：功能主义 - 参数配置界面
+ * 支持用户个性化配置存储
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { toast } from 'sonner';
-import { Save, RotateCcw, Info } from 'lucide-react';
+import { Save, RotateCcw, Info, Loader2 } from 'lucide-react';
+import { trpc } from '@/lib/trpc';
+
+interface ConfigState {
+  // B1信号参数
+  b1JThreshold: number;
+  b1MacdCondition: string;
+  b1VolumeRatio: number;
+  b1RedGreenCondition: boolean;
+  
+  // S1信号参数
+  s1BreakWhiteLine: boolean;
+  s1LongYangFly: boolean;
+  s1JThreshold: number;
+  s1VolumeCondition: boolean;
+  
+  // 监控池配置
+  watchlistStocks: string;
+  excludedIndustries: string;
+}
+
+const defaultConfig: ConfigState = {
+  b1JThreshold: 13,
+  b1MacdCondition: 'MACD>0',
+  b1VolumeRatio: 1.0,
+  b1RedGreenCondition: true,
+  s1BreakWhiteLine: true,
+  s1LongYangFly: true,
+  s1JThreshold: 85,
+  s1VolumeCondition: true,
+  watchlistStocks: '',
+  excludedIndustries: '',
+};
 
 export default function ConfigView() {
-  const [config, setConfig] = useState({
-    // B1信号参数
-    b1JThreshold: 13,
-    b1MacdPositive: true,
-    b1VolumeRatio: 1.5,
-    
-    // S1信号参数
-    s1BreakWhiteLine: true,
-    s1LongYangFly: true,
-    s1JThreshold: 85,
-    
-    // 通用参数
-    monitorDays: 60,
-    autoRefresh: true,
-    refreshInterval: 5,
+  const [config, setConfig] = useState<ConfigState>(defaultConfig);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // 获取用户配置
+  const { data: serverConfig, isLoading, refetch } = trpc.config.get.useQuery();
+  
+  // 更新配置mutation
+  const updateConfig = trpc.config.update.useMutation({
+    onSuccess: () => {
+      toast.success('配置已保存', {
+        description: '参数设置已更新，将在下次数据刷新时生效',
+      });
+      setHasChanges(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error('保存失败', {
+        description: error.message,
+      });
+    },
   });
 
+  // 重置配置mutation
+  const resetConfig = trpc.config.reset.useMutation({
+    onSuccess: () => {
+      toast.info('已恢复默认配置');
+      setHasChanges(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error('重置失败', {
+        description: error.message,
+      });
+    },
+  });
+
+  // 从服务器配置初始化本地状态
+  useEffect(() => {
+    if (serverConfig) {
+      setConfig({
+        b1JThreshold: serverConfig.b1JValueThreshold ?? 13,
+        b1MacdCondition: serverConfig.b1MacdCondition ?? 'MACD>0',
+        b1VolumeRatio: parseFloat(serverConfig.b1VolumeRatio ?? '1.0'),
+        b1RedGreenCondition: serverConfig.b1RedGreenCondition ?? true,
+        s1BreakWhiteLine: serverConfig.s1WhiteLineBreak ?? true,
+        s1LongYangFly: serverConfig.s1LongYangFly ?? true,
+        s1JThreshold: serverConfig.s1JValueHigh ?? 85,
+        s1VolumeCondition: serverConfig.s1VolumeCondition ?? true,
+        watchlistStocks: serverConfig.watchlistStocks || '',
+        excludedIndustries: serverConfig.excludedIndustries || '',
+      });
+    }
+  }, [serverConfig]);
+
+  const handleConfigChange = (key: keyof ConfigState, value: ConfigState[keyof ConfigState]) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+    setHasChanges(true);
+  };
+
   const handleSave = () => {
-    toast.success('配置已保存', {
-      description: '参数设置已更新，将在下次数据刷新时生效',
+    updateConfig.mutate({
+      b1JValueThreshold: config.b1JThreshold,
+      b1MacdCondition: config.b1MacdCondition,
+      b1VolumeRatio: config.b1VolumeRatio.toString(),
+      b1RedGreenCondition: config.b1RedGreenCondition,
+      s1WhiteLineBreak: config.s1BreakWhiteLine,
+      s1LongYangFly: config.s1LongYangFly,
+      s1JValueHigh: config.s1JThreshold,
+      s1VolumeCondition: config.s1VolumeCondition,
+      watchlistStocks: config.watchlistStocks || null,
+      excludedIndustries: config.excludedIndustries || null,
     });
   };
 
   const handleReset = () => {
-    setConfig({
-      b1JThreshold: 13,
-      b1MacdPositive: true,
-      b1VolumeRatio: 1.5,
-      s1BreakWhiteLine: true,
-      s1LongYangFly: true,
-      s1JThreshold: 85,
-      monitorDays: 60,
-      autoRefresh: true,
-      refreshInterval: 5,
-    });
-    toast.info('已恢复默认配置');
+    resetConfig.mutate();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -57,7 +138,7 @@ export default function ConfigView() {
       <div>
         <h2 className="text-xl font-semibold">D战法配置</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          调整量化策略的核心参数
+          调整量化策略的核心参数（配置将自动保存到您的账户）
         </p>
       </div>
 
@@ -79,7 +160,7 @@ export default function ConfigView() {
             <Slider
               id="b1JThreshold"
               value={[config.b1JThreshold]}
-              onValueChange={([v]) => setConfig({ ...config, b1JThreshold: v })}
+              onValueChange={([v]) => handleConfigChange('b1JThreshold', v)}
               max={30}
               min={0}
               step={1}
@@ -100,28 +181,28 @@ export default function ConfigView() {
             <Slider
               id="b1VolumeRatio"
               value={[config.b1VolumeRatio * 10]}
-              onValueChange={([v]) => setConfig({ ...config, b1VolumeRatio: v / 10 })}
+              onValueChange={([v]) => handleConfigChange('b1VolumeRatio', v / 10)}
               max={30}
               min={10}
               step={1}
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">
-              成交量需达到均量的倍数（默认: 1.5x）
+              成交量需达到均量的倍数（默认: 1.0x）
             </p>
           </div>
 
           <div className="flex items-center justify-between col-span-2 p-4 bg-muted/50 rounded-lg">
             <div>
-              <Label htmlFor="b1MacdPositive">MACD需为正值</Label>
+              <Label htmlFor="b1RedGreenCondition">红肥绿瘦条件</Label>
               <p className="text-xs text-muted-foreground mt-1">
-                开启后，仅在MACD柱为正时触发信号
+                开启后，需满足红柱大于绿柱的条件
               </p>
             </div>
             <Switch
-              id="b1MacdPositive"
-              checked={config.b1MacdPositive}
-              onCheckedChange={(v) => setConfig({ ...config, b1MacdPositive: v })}
+              id="b1RedGreenCondition"
+              checked={config.b1RedGreenCondition}
+              onCheckedChange={(v) => handleConfigChange('b1RedGreenCondition', v)}
             />
           </div>
         </div>
@@ -145,7 +226,7 @@ export default function ConfigView() {
             <Switch
               id="s1BreakWhiteLine"
               checked={config.s1BreakWhiteLine}
-              onCheckedChange={(v) => setConfig({ ...config, s1BreakWhiteLine: v })}
+              onCheckedChange={(v) => handleConfigChange('s1BreakWhiteLine', v)}
             />
           </div>
 
@@ -159,7 +240,7 @@ export default function ConfigView() {
             <Switch
               id="s1LongYangFly"
               checked={config.s1LongYangFly}
-              onCheckedChange={(v) => setConfig({ ...config, s1LongYangFly: v })}
+              onCheckedChange={(v) => handleConfigChange('s1LongYangFly', v)}
             />
           </div>
 
@@ -173,7 +254,7 @@ export default function ConfigView() {
             <Slider
               id="s1JThreshold"
               value={[config.s1JThreshold]}
-              onValueChange={([v]) => setConfig({ ...config, s1JThreshold: v })}
+              onValueChange={([v]) => handleConfigChange('s1JThreshold', v)}
               max={100}
               min={70}
               step={1}
@@ -183,60 +264,55 @@ export default function ConfigView() {
               J值高于此阈值时触发超买警告（默认: 85）
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* 通用参数 */}
-      <div className="bg-card rounded-lg border border-border/50 p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <div className="w-1.5 h-5 bg-slate-500 rounded-full" />
-          <h3 className="font-medium">通用参数</h3>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-3">
-            <Label htmlFor="monitorDays">监控周期（天）</Label>
-            <Input
-              id="monitorDays"
-              type="number"
-              value={config.monitorDays}
-              onChange={(e) => setConfig({ ...config, monitorDays: parseInt(e.target.value) || 60 })}
-              min={30}
-              max={120}
-            />
-            <p className="text-xs text-muted-foreground">
-              K线数据回溯天数（30-120天）
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <Label htmlFor="refreshInterval">刷新间隔（分钟）</Label>
-            <Input
-              id="refreshInterval"
-              type="number"
-              value={config.refreshInterval}
-              onChange={(e) => setConfig({ ...config, refreshInterval: parseInt(e.target.value) || 5 })}
-              min={1}
-              max={60}
-              disabled={!config.autoRefresh}
-            />
-            <p className="text-xs text-muted-foreground">
-              数据自动刷新的时间间隔
-            </p>
-          </div>
 
           <div className="flex items-center justify-between col-span-2 p-4 bg-muted/50 rounded-lg">
             <div>
-              <Label htmlFor="autoRefresh">自动刷新数据</Label>
+              <Label htmlFor="s1VolumeCondition">放量条件</Label>
               <p className="text-xs text-muted-foreground mt-1">
-                开启后将按设定间隔自动更新数据
+                开启后，需满足放量条件才触发卖出信号
               </p>
             </div>
             <Switch
-              id="autoRefresh"
-              checked={config.autoRefresh}
-              onCheckedChange={(v) => setConfig({ ...config, autoRefresh: v })}
+              id="s1VolumeCondition"
+              checked={config.s1VolumeCondition}
+              onCheckedChange={(v) => handleConfigChange('s1VolumeCondition', v)}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* 监控池配置 */}
+      <div className="bg-card rounded-lg border border-border/50 p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <div className="w-1.5 h-5 bg-blue-500 rounded-full" />
+          <h3 className="font-medium">监控池配置</h3>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          <div className="space-y-3">
+            <Label htmlFor="watchlistStocks">自选股列表</Label>
+            <Input
+              id="watchlistStocks"
+              placeholder="输入股票代码，用逗号分隔，如：000001,600000,300750"
+              value={config.watchlistStocks}
+              onChange={(e) => handleConfigChange('watchlistStocks', e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              设置后，B1/S1信号将仅显示自选股列表中的股票
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Label htmlFor="excludedIndustries">排除行业</Label>
+            <Input
+              id="excludedIndustries"
+              placeholder="输入行业名称，用逗号分隔，如：房地产,银行"
+              value={config.excludedIndustries}
+              onChange={(e) => handleConfigChange('excludedIndustries', e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              设置后，将排除指定行业的股票
+            </p>
           </div>
         </div>
       </div>
@@ -245,15 +321,32 @@ export default function ConfigView() {
       <div className="flex items-center justify-between pt-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Info className="w-4 h-4" />
-          <span>修改配置后需保存才能生效</span>
+          <span>
+            {hasChanges ? '有未保存的更改' : '配置已同步'}
+          </span>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={handleReset}>
-            <RotateCcw className="w-4 h-4 mr-2" />
+          <Button 
+            variant="outline" 
+            onClick={handleReset}
+            disabled={resetConfig.isPending}
+          >
+            {resetConfig.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <RotateCcw className="w-4 h-4 mr-2" />
+            )}
             恢复默认
           </Button>
-          <Button onClick={handleSave}>
-            <Save className="w-4 h-4 mr-2" />
+          <Button 
+            onClick={handleSave}
+            disabled={updateConfig.isPending || !hasChanges}
+          >
+            {updateConfig.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
             保存配置
           </Button>
         </div>
@@ -264,7 +357,7 @@ export default function ConfigView() {
         <p>
           <strong>参数说明：</strong>
           以上参数用于调整量化策略的触发条件。参数调整可能影响信号的数量和质量，
-          建议在充分理解各参数含义后进行调整。如有疑问，请参考使用文档或保持默认设置。
+          建议在充分理解各参数含义后进行调整。配置将保存到您的账户，不同设备登录后可同步使用。
         </p>
       </div>
     </div>

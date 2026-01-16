@@ -1,6 +1,7 @@
 /**
  * 仪表盘概览组件
  * 设计风格：功能主义 - 市场全景数据展示
+ * 支持卡片下钻：今日B1 -> B1观察页面，持仓卖出预警 -> S1卖出页面
  */
 
 import { marketOverview, signalDistribution, industryDistribution } from '@/data/mockData';
@@ -17,17 +18,28 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  Legend,
   Tooltip,
 } from 'recharts';
 
-export default function DashboardOverview() {
+interface DashboardOverviewProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export default function DashboardOverview({ onNavigate }: DashboardOverviewProps) {
   // 信号强度分布数据
   const signalData = [
     { name: '强信号', value: signalDistribution.strong, color: '#22C55E' },
     { name: '中信号', value: signalDistribution.medium, color: '#F59E0B' },
     { name: '观察池', value: Math.min(signalDistribution.pool, 100), color: '#94A3B8' },
   ];
+
+  const handleB1Click = () => {
+    onNavigate?.('b1-signals');
+  };
+
+  const handleS1Click = () => {
+    onNavigate?.('s1-signals');
+  };
 
   return (
     <div className="space-y-6">
@@ -55,6 +67,8 @@ export default function DashboardOverview() {
           subtitle={marketOverview.b1Condition}
           icon={TrendingUp}
           variant="success"
+          clickable
+          onClick={handleB1Click}
         />
         <StatCard
           title="持仓卖出预警"
@@ -62,6 +76,8 @@ export default function DashboardOverview() {
           subtitle={marketOverview.sellCondition}
           icon={TrendingDown}
           variant="danger"
+          clickable
+          onClick={handleS1Click}
         />
         <StatCard
           title="昨日观察胜率"

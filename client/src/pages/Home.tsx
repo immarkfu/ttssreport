@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { useAuth } from '@/_core/hooks/useAuth';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import DashboardOverview from '@/components/DashboardOverview';
@@ -12,15 +13,65 @@ import SignalDetailView from '@/components/SignalDetailView';
 import BacktestView from '@/components/BacktestView';
 import ConfigView from '@/components/ConfigView';
 import { b1SignalList, s1SignalList } from '@/data/mockData';
+import { getLoginUrl } from '@/const';
+import { Button } from '@/components/ui/button';
+import { LogIn, Loader2 } from 'lucide-react';
 
 export default function Home() {
+  const { user, loading, isAuthenticated, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // 处理导航（包括仪表盘卡片下钻）
+  const handleNavigate = (tab: string) => {
+    setActiveTab(tab);
+  };
+
+  // 登录加载中
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">正在加载...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 未登录状态 - 显示登录页面
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-card rounded-lg border border-border/50 p-8 text-center">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-2xl font-bold text-primary">知行</span>
+            </div>
+            <h1 className="text-2xl font-semibold mb-2">知行量化数据平台</h1>
+            <p className="text-muted-foreground mb-6">
+              踏踏实实 · 知行合一 · Love & Share
+            </p>
+            <Button
+              className="w-full"
+              onClick={() => window.location.href = getLoginUrl()}
+            >
+              <LogIn className="w-4 h-4 mr-2" />
+              登录以继续
+            </Button>
+            <p className="text-xs text-muted-foreground mt-4">
+              数据仅供参考，不构成投资建议
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardOverview />;
+        return <DashboardOverview onNavigate={handleNavigate} />;
       case 'b1-signals':
         return <SignalDetailView signals={b1SignalList} type="B1" />;
       case 's1-signals':
@@ -30,7 +81,7 @@ export default function Home() {
       case 'config':
         return <ConfigView />;
       default:
-        return <DashboardOverview />;
+        return <DashboardOverview onNavigate={handleNavigate} />;
     }
   };
 
@@ -42,6 +93,8 @@ export default function Home() {
         onTabChange={setActiveTab}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        user={user}
+        onLogout={logout}
       />
 
       {/* 主内容区域 */}

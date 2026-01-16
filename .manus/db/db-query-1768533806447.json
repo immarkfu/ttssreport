@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `user_configs` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `b1JValueThreshold` int NOT NULL DEFAULT 13,\n  `b1MacdCondition` varchar(32) NOT NULL DEFAULT 'MACD>0',\n  `b1VolumeRatio` varchar(32) NOT NULL DEFAULT '1.0',\n  `b1RedGreenCondition` boolean NOT NULL DEFAULT true,\n  `s1WhiteLineBreak` boolean NOT NULL DEFAULT true,\n  `s1LongYangFly` boolean NOT NULL DEFAULT true,\n  `s1JValueHigh` int NOT NULL DEFAULT 85,\n  `s1VolumeCondition` boolean NOT NULL DEFAULT true,\n  `watchlistStocks` text,\n  `excludedIndustries` text,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user w9iusXSBqgRaURa.root --database 3tXMcaizWzhLp2vvRmURvt --execute CREATE TABLE IF NOT EXISTS `user_configs` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `b1JValueThreshold` int NOT NULL DEFAULT 13,\n  `b1MacdCondition` varchar(32) NOT NULL DEFAULT 'MACD>0',\n  `b1VolumeRatio` varchar(32) NOT NULL DEFAULT '1.0',\n  `b1RedGreenCondition` boolean NOT NULL DEFAULT true,\n  `s1WhiteLineBreak` boolean NOT NULL DEFAULT true,\n  `s1LongYangFly` boolean NOT NULL DEFAULT true,\n  `s1JValueHigh` int NOT NULL DEFAULT 85,\n  `s1VolumeCondition` boolean NOT NULL DEFAULT true,\n  `watchlistStocks` text,\n  `excludedIndustries` text,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 94
+}

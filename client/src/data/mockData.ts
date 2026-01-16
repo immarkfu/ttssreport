@@ -16,6 +16,7 @@ export interface StockSignal {
   volume: number;
   triggerTime: string;
   triggerCondition: string;
+  displayFactor: string; // 展示要素：如 J<13、红肥绿瘦
 }
 
 export interface KLineData {
@@ -172,6 +173,7 @@ export const b1SignalList: StockSignal[] = [
     volume: 2580000,
     triggerTime: '2026-01-16 09:45',
     triggerCondition: 'J值<13 & MACD>0',
+    displayFactor: 'J<13',
   },
   {
     id: '2',
@@ -186,6 +188,7 @@ export const b1SignalList: StockSignal[] = [
     volume: 4120000,
     triggerTime: '2026-01-16 10:15',
     triggerCondition: 'J值<13 & MACD>0',
+    displayFactor: 'J<13',
   },
   {
     id: '3',
@@ -200,6 +203,7 @@ export const b1SignalList: StockSignal[] = [
     volume: 8560000,
     triggerTime: '2026-01-16 10:30',
     triggerCondition: 'J值<20 & MACD>0',
+    displayFactor: 'J<20',
   },
   {
     id: '4',
@@ -214,6 +218,7 @@ export const b1SignalList: StockSignal[] = [
     volume: 12500000,
     triggerTime: '2026-01-16 11:00',
     triggerCondition: 'J值<20 & MACD>0',
+    displayFactor: '红肥绿瘦',
   },
   {
     id: '5',
@@ -228,6 +233,7 @@ export const b1SignalList: StockSignal[] = [
     volume: 15800000,
     triggerTime: '2026-01-16 13:30',
     triggerCondition: 'J值<25 & MACD>0',
+    displayFactor: 'J<25',
   },
   {
     id: '6',
@@ -242,6 +248,7 @@ export const b1SignalList: StockSignal[] = [
     volume: 28500000,
     triggerTime: '2026-01-16 14:00',
     triggerCondition: 'J值<25 & MACD>0',
+    displayFactor: '量比>1.5',
   },
 ];
 
@@ -260,6 +267,7 @@ export const s1SignalList: StockSignal[] = [
     volume: 6850000,
     triggerTime: '2026-01-16 09:35',
     triggerCondition: '跌破白线 & 放量',
+    displayFactor: '跌破白线',
   },
   {
     id: '2',
@@ -274,6 +282,7 @@ export const s1SignalList: StockSignal[] = [
     volume: 18500000,
     triggerTime: '2026-01-16 10:20',
     triggerCondition: '长阳放飞',
+    displayFactor: '长阳放飞',
   },
   {
     id: '3',
@@ -288,6 +297,7 @@ export const s1SignalList: StockSignal[] = [
     volume: 25600000,
     triggerTime: '2026-01-16 11:15',
     triggerCondition: '跌破白线 & 放量',
+    displayFactor: '跌破白线',
   },
   {
     id: '4',
@@ -302,6 +312,7 @@ export const s1SignalList: StockSignal[] = [
     volume: 85000000,
     triggerTime: '2026-01-16 13:45',
     triggerCondition: 'J值>85',
+    displayFactor: 'J>85',
   },
   {
     id: '5',
@@ -316,6 +327,7 @@ export const s1SignalList: StockSignal[] = [
     volume: 12800000,
     triggerTime: '2026-01-16 14:15',
     triggerCondition: '长阳放飞',
+    displayFactor: '红肥绿瘦',
   },
 ];
 

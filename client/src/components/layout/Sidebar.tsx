@@ -1,6 +1,7 @@
 /**
  * 侧边栏导航组件
  * 设计风格：功能主义 - 清晰的导航层级，支持伸缩
+ * 支持用户信息显示和登出
  */
 
 import { cn } from '@/lib/utils';
@@ -14,14 +15,26 @@ import {
   Heart,
   ChevronLeft,
   ChevronRight,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+
+interface UserInfo {
+  id: number;
+  openId: string;
+  name: string | null;
+  email: string | null;
+}
 
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  user?: UserInfo | null;
+  onLogout?: () => void;
 }
 
 const navItems = [
@@ -32,7 +45,7 @@ const navItems = [
   { id: 'config', label: 'D战法配置', icon: Settings },
 ];
 
-export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse }: SidebarProps) {
+export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse, user, onLogout }: SidebarProps) {
   return (
     <aside 
       className={cn(
@@ -99,6 +112,36 @@ export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCol
       <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-4")}>
         {!collapsed ? (
           <div className="space-y-3">
+            {/* 用户信息 */}
+            {user && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <User className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{user.name || '用户'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email || ''}</p>
+                  </div>
+                </div>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 flex-shrink-0"
+                      onClick={onLogout}
+                    >
+                      <LogOut className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    退出登录
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+
             {/* 数据源状态 */}
             <div className="flex items-center gap-2 text-sm">
               <Database className="w-4 h-4 text-muted-foreground" />
@@ -125,6 +168,25 @@ export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCol
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
+            {/* 用户头像 */}
+            {user && (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onLogout}
+                    className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
+                  >
+                    <User className="w-4 h-4 text-primary" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={10}>
+                  <div className="text-sm">
+                    <p className="font-medium">{user.name || '用户'}</p>
+                    <p className="text-xs text-muted-foreground">点击退出登录</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <div className="flex items-center justify-center">

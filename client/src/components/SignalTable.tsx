@@ -1,6 +1,7 @@
 /**
  * 信号列表表格组件
  * 设计风格：功能主义 - 数据表格清晰展示，支持点击联动
+ * 表头：代码、名称、现价、涨跌幅、强度、展示要素
  */
 
 import { cn } from '@/lib/utils';
@@ -34,6 +35,25 @@ export default function SignalTable({ signals, selectedId, onSelect, type }: Sig
     );
   };
 
+  const getDisplayFactorBadge = (factor: string) => {
+    // 根据展示要素类型显示不同颜色
+    let style = 'bg-blue-50 text-blue-700 border-blue-200';
+    if (factor.includes('J<') || factor.includes('J>')) {
+      style = 'bg-purple-50 text-purple-700 border-purple-200';
+    } else if (factor.includes('跌破') || factor.includes('放飞')) {
+      style = 'bg-red-50 text-red-600 border-red-200';
+    } else if (factor.includes('红肥绿瘦')) {
+      style = 'bg-orange-50 text-orange-700 border-orange-200';
+    } else if (factor.includes('量比')) {
+      style = 'bg-cyan-50 text-cyan-700 border-cyan-200';
+    }
+    return (
+      <Badge variant="outline" className={cn('text-xs font-normal whitespace-nowrap', style)}>
+        {factor}
+      </Badge>
+    );
+  };
+
   return (
     <div className="bg-card rounded-lg border border-border/50 overflow-hidden h-full flex flex-col">
       {/* 表头 */}
@@ -52,10 +72,11 @@ export default function SignalTable({ signals, selectedId, onSelect, type }: Sig
           <thead className="sticky top-0 bg-card z-10">
             <tr>
               <th className="w-20">代码</th>
-              <th>名称</th>
-              <th className="w-16">强度</th>
+              <th className="w-24">名称</th>
               <th className="w-20 text-right">现价</th>
               <th className="w-20 text-right">涨跌幅</th>
+              <th className="w-14 text-center">强度</th>
+              <th className="w-24 text-center">展示要素</th>
             </tr>
           </thead>
           <tbody>
@@ -70,19 +91,20 @@ export default function SignalTable({ signals, selectedId, onSelect, type }: Sig
               >
                 <td className="font-mono text-sm">{signal.code}</td>
                 <td>
-                  <div>
-                    <span className="font-medium">{signal.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{signal.industry}</span>
+                  <div className="flex flex-col">
+                    <span className="font-medium text-sm">{signal.name}</span>
+                    <span className="text-xs text-muted-foreground">{signal.industry}</span>
                   </div>
                 </td>
-                <td>{getStrengthBadge(signal.signalStrength)}</td>
-                <td className="text-right font-mono">{signal.price.toFixed(2)}</td>
+                <td className="text-right font-mono text-sm">{signal.price.toFixed(2)}</td>
                 <td className={cn(
-                  'text-right font-mono font-medium',
+                  'text-right font-mono font-medium text-sm',
                   signal.changePercent >= 0 ? 'text-red-500' : 'text-emerald-500'
                 )}>
                   {signal.changePercent >= 0 ? '+' : ''}{signal.changePercent.toFixed(2)}%
                 </td>
+                <td className="text-center">{getStrengthBadge(signal.signalStrength)}</td>
+                <td className="text-center">{getDisplayFactorBadge(signal.displayFactor)}</td>
               </tr>
             ))}
           </tbody>
