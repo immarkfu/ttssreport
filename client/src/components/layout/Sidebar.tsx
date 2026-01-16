@@ -41,7 +41,7 @@ const navItems = [
   { id: 'dashboard', label: '总览仪表盘', icon: LayoutDashboard },
   { id: 'b1-signals', label: '每日B1观察提醒', icon: TrendingUp },
   { id: 's1-signals', label: '每日S1卖出提醒', icon: TrendingDown },
-  { id: 'backtest', label: 'B1观察点回测分析', icon: BarChart3 },
+  { id: 'observation', label: '观察分析看板', icon: BarChart3 },
   { id: 'config', label: 'D战法配置', icon: Settings },
 ];
 

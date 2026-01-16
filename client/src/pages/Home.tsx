@@ -10,7 +10,7 @@ import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import DashboardOverview from '@/components/DashboardOverview';
 import SignalDetailView from '@/components/SignalDetailView';
-import BacktestView from '@/components/BacktestView';
+import ObservationDashboard from '@/components/ObservationDashboard';
 import ConfigView from '@/components/ConfigView';
 import { b1SignalList, s1SignalList } from '@/data/mockData';
 import { getLoginUrl } from '@/const';
@@ -124,8 +124,8 @@ export default function Home() {
             onBacktestPoolChange={handleBacktestPoolChange}
           />
         );
-      case 'backtest':
-        return <BacktestView backtestPool={backtestPool} />;
+      case 'observation':
+        return <ObservationDashboard />;
       case 'config':
         return <ConfigView />;
       default:

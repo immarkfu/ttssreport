@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS observation_pool (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  userId INT NOT NULL,\n  stockCode VARCHAR(10) NOT NULL,\n  stockName VARCHAR(50) NOT NULL,\n  industry VARCHAR(50),\n  addedDate DATE NOT NULL,\n  addedPrice DECIMAL(10, 2),\n  performance5d DECIMAL(10, 2),\n  performance10d DECIMAL(10, 2),\n  performance20d DECIMAL(10, 2),\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_user_stock (userId, stockCode),\n  INDEX idx_user (userId),\n  INDEX idx_added_date (addedDate)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user w9iusXSBqgRaURa.root --database 3tXMcaizWzhLp2vvRmURvt --execute CREATE TABLE IF NOT EXISTS observation_pool (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  userId INT NOT NULL,\n  stockCode VARCHAR(10) NOT NULL,\n  stockName VARCHAR(50) NOT NULL,\n  industry VARCHAR(50),\n  addedDate DATE NOT NULL,\n  addedPrice DECIMAL(10, 2),\n  performance5d DECIMAL(10, 2),\n  performance10d DECIMAL(10, 2),\n  performance20d DECIMAL(10, 2),\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_user_stock (userId, stockCode),\n  INDEX idx_user (userId),\n  INDEX idx_added_date (addedDate)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 237
+}

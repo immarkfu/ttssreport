@@ -25,3 +25,12 @@
 - [x] Add table sorting by column headers
 - [x] Add "Add to backtest pool" checkbox column
 - [x] Link backtest pool selection to backtest analysis page
+- [x] Delete B1 backtest analysis page
+- [x] Create new "Observation Analysis Dashboard" page
+- [x] Add date tracking for stocks added to observation pool
+- [x] Display 5/10/20-day performance for each stock
+- [x] Add remove button with confirmation dialog
+- [x] Implement win rate statistics dashboard (overall + by industry)
+- [x] Add period switcher (5/10/20 days)
+- [ ] Mark entry date on K-line chart with blue dot
+- [ ] Show interval K-line chart when clicking performance fields
