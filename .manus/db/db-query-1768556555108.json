@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `observation_pool` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `code` varchar(16) NOT NULL,\n  `name` varchar(64) NOT NULL,\n  `industry` varchar(64) NOT NULL,\n  `addedDate` varchar(16) NOT NULL,\n  `addedPrice` int NOT NULL,\n  `displayFactors` text,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `observation_pool_id` PRIMARY KEY(`id`),\n  UNIQUE KEY `observation_pool_user_code` (`userId`, `code`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user w9iusXSBqgRaURa.root --database 3tXMcaizWzhLp2vvRmURvt --execute CREATE TABLE IF NOT EXISTS `observation_pool` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `code` varchar(16) NOT NULL,\n  `name` varchar(64) NOT NULL,\n  `industry` varchar(64) NOT NULL,\n  `addedDate` varchar(16) NOT NULL,\n  `addedPrice` int NOT NULL,\n  `displayFactors` text,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `observation_pool_id` PRIMARY KEY(`id`),\n  UNIQUE KEY `observation_pool_user_code` (`userId`, `code`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 53
+}

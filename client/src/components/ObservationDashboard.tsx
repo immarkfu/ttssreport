@@ -326,6 +326,7 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
                 stockCode={selectedStock.code}
                 stockName={selectedStock.name}
                 data={generateKLineData(selectedStock.addedPrice)}
+                entryDate={selectedStock.addedDate}
               />
             </>
           ) : (

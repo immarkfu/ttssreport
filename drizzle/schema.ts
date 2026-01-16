@@ -57,3 +57,22 @@ export const userConfigs = mysqlTable("user_configs", {
 
 export type UserConfig = typeof userConfigs.$inferSelect;
 export type InsertUserConfig = typeof userConfigs.$inferInsert;
+
+/**
+ * 观察池表
+ * 存储用户加入观察池的股票信息
+ */
+export const observationPool = mysqlTable("observation_pool", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  code: varchar("code", { length: 16 }).notNull(),
+  name: varchar("name", { length: 64 }).notNull(),
+  industry: varchar("industry", { length: 64 }).notNull(),
+  addedDate: varchar("addedDate", { length: 16 }).notNull(), // YYYY-MM-DD格式
+  addedPrice: int("addedPrice").notNull(), // 以分为单位存储，避免浮点数精度问题
+  displayFactors: text("displayFactors"), // JSON字符串，存储展示要素数组
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ObservationPool = typeof observationPool.$inferSelect;
+export type InsertObservationPool = typeof observationPool.$inferInsert;

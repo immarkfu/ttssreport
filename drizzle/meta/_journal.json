@@ -15,6 +15,13 @@
       "when": 1768548751012,
       "tag": "0001_robust_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1768556547054,
+      "tag": "0002_young_overlord",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, userConfigs, InsertUserConfig, UserConfig } from "../drizzle/schema";
+import { InsertUser, users, userConfigs, InsertUserConfig, UserConfig, observationPool, InsertObservationPool } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -159,4 +159,102 @@ export function getDefaultConfig(): Omit<InsertUserConfig, 'userId'> {
     watchlistStocks: null,
     excludedIndustries: null,
   };
+}
+
+// ============ 观察池相关操作 ============
+
+interface ObservationPoolStock {
+  code: string;
+  name: string;
+  industry: string;
+  addedDate: string;
+  addedPrice: number;
+  displayFactors: string[];
+}
+
+/**
+ * 获取用户的观察池股票列表
+ */
+export async function getObservationPool(userId: number): Promise<ObservationPoolStock[]> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get observation pool: database not available");
+    return [];
+  }
+
+  try {
+    const result = await db.select().from(observationPool).where(eq(observationPool.userId, userId));
+    
+    // 解析displayFactors JSON字符串
+    return result.map(row => ({
+      code: row.code,
+      name: row.name,
+      industry: row.industry,
+      addedDate: row.addedDate,
+      addedPrice: row.addedPrice / 100, // 从分转换为元
+      displayFactors: row.displayFactors ? JSON.parse(row.displayFactors) : [],
+    }));
+  } catch (error) {
+    console.error("[Database] Failed to get observation pool:", error);
+    return [];
+  }
+}
+
+/**
+ * 加入观察池
+ */
+export async function addToObservationPool(
+  userId: number,
+  stock: Omit<ObservationPoolStock, 'addedDate'>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot add to observation pool: database not available");
+    return;
+  }
+
+  try {
+    const addedDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD格式
+    const values: InsertObservationPool = {
+      userId,
+      code: stock.code,
+      name: stock.name,
+      industry: stock.industry,
+      addedDate,
+      addedPrice: Math.round(stock.addedPrice * 100), // 从元转换为分
+      displayFactors: JSON.stringify(stock.displayFactors),
+    };
+
+    await db.insert(observationPool).values(values).onDuplicateKeyUpdate({
+      set: {
+        name: stock.name,
+        industry: stock.industry,
+        addedPrice: Math.round(stock.addedPrice * 100), // 从元转换为分
+        displayFactors: JSON.stringify(stock.displayFactors),
+      },
+    });
+  } catch (error) {
+    console.error("[Database] Failed to add to observation pool:", error);
+    throw error;
+  }
+}
+
+/**
+ * 移出观察池
+ */
+export async function removeFromObservationPool(userId: number, code: string): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot remove from observation pool: database not available");
+    return;
+  }
+
+  try {
+    await db.delete(observationPool).where(
+      eq(observationPool.userId, userId) && eq(observationPool.code, code)
+    );
+  } catch (error) {
+    console.error("[Database] Failed to remove from observation pool:", error);
+    throw error;
+  }
 }

@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
-import { getUserConfig, upsertUserConfig, getDefaultConfig } from "./db";
+import { getUserConfig, upsertUserConfig, getDefaultConfig, getObservationPool, addToObservationPool, removeFromObservationPool } from "./db";
 import { z } from "zod";
 
 // 用户配置输入验证schema
@@ -86,6 +86,36 @@ export const appRouter = router({
         await upsertUserConfig(ctx.user.id, {
           backtestPool: JSON.stringify(input.codes),
         });
+        return { success: true };
+      }),
+  }),
+
+  // 观察池路由（用户个性化数据）
+  observation: router({
+    // 获取当前用户的观察池
+    getMyPool: protectedProcedure.query(async ({ ctx }) => {
+      return await getObservationPool(ctx.user.id);
+    }),
+
+    // 加入观察池
+    addToPool: protectedProcedure
+      .input(z.object({
+        code: z.string(),
+        name: z.string(),
+        industry: z.string(),
+        addedPrice: z.number(),
+        displayFactors: z.array(z.string()),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await addToObservationPool(ctx.user.id, input);
+        return { success: true };
+      }),
+
+    // 移出观察池
+    removeFromPool: protectedProcedure
+      .input(z.object({ code: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        await removeFromObservationPool(ctx.user.id, input.code);
         return { success: true };
       }),
   }),

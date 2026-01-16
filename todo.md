@@ -47,3 +47,7 @@
 - [x] Add 5-8 display factors for some stocks to test multi-row layout
 - [x] Make observation dashboard empty by default
 - [ ] Implement "Add to Observation" button functionality to sync with observation dashboard
+- [x] Mark entry date on K-line chart with blue dot in observation dashboard
+- [x] Implement multi-tenancy: separate global data (dashboard market data, B1/S1 signals) from user-specific data (observation pool, TTSS config)
+- [x] Ensure observation pool data is user-specific and isolated
+- [ ] Test account switching to verify data isolation

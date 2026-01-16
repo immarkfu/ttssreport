@@ -21,9 +21,10 @@ interface KLineChartProps {
   data: KLineData[];
   stockName?: string;
   stockCode?: string;
+  entryDate?: string; // 纳入观察池的日期，格式为YYYY-MM-DD
 }
 
-export default function KLineChart({ data, stockName, stockCode }: KLineChartProps) {
+export default function KLineChart({ data, stockName, stockCode, entryDate }: KLineChartProps) {
   const mainChartRef = useRef<HTMLDivElement>(null);
   const volumeChartRef = useRef<HTMLDivElement>(null);
   const kdjChartRef = useRef<HTMLDivElement>(null);
@@ -140,6 +141,28 @@ export default function KLineChart({ data, stockName, stockCode }: KLineChartPro
 
     ma5Series.setData(calculateMA(5));
     ma10Series.setData(calculateMA(10));
+
+    // 如果有纳入日期，在K线图上添加蓝色圆点标记
+    if (entryDate) {
+      // 找到纳入日期对应的数据点
+      const entryTimestamp = new Date(entryDate).getTime() / 1000;
+      const entryPoint = data.find(d => {
+        const dataTime = typeof d.time === 'string' ? new Date(d.time).getTime() / 1000 : d.time;
+        return Math.abs(dataTime - entryTimestamp) < 86400; // 允许24小时的误差
+      });
+      
+      if (entryPoint) {
+        // 使用createPriceLine添加标记线
+        candlestickSeries.createPriceLine({
+          price: entryPoint.close,
+          color: '#3B82F6',
+          lineWidth: 1,
+          lineStyle: 2, // dashed
+          axisLabelVisible: true,
+          title: `纳入: ${entryDate}`,
+        });
+      }
+    }
 
     // 创建成交量图表
     volumeChart.current = createChart(volumeChartRef.current, {
