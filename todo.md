@@ -34,3 +34,12 @@
 - [x] Add period switcher (5/10/20 days)
 - [ ] Mark entry date on K-line chart with blue dot
 - [ ] Show interval K-line chart when clicking performance fields
+- [x] Dashboard: Remove market monitoring pool card
+- [x] Dashboard: Change B1 trigger format to "26/4832"
+- [x] B1/S1 pages: Rename "backtest" column to "observation"
+- [x] B1/S1 pages: Add "Add to Observation" button in table header
+- [x] B1/S1 pages: Optimize display tags layout to 4 columns with wrapping
+- [x] Observation dashboard: Narrow top cards
+- [x] Observation dashboard: Rename to "Personal Observation Pool"
+- [x] Observation dashboard: Add display tags column with 4-column layout
+- [x] Observation dashboard: Add pagination

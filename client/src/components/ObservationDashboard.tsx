@@ -4,9 +4,11 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import KLineChart from '@/components/charts/KLineChart';
 import { generateKLineData } from '@/data/mockData';
+import { cn } from '@/lib/utils';
 
 interface ObservationStock {
   code: string;
@@ -17,6 +19,7 @@ interface ObservationStock {
   performance5d: number | null;
   performance10d: number | null;
   performance20d: number | null;
+  displayFactors: string[]; // 展示要素数组
 }
 
 // 模拟数据
@@ -30,6 +33,7 @@ const mockObservationStocks: ObservationStock[] = [
     performance5d: 1.53,
     performance10d: null,
     performance20d: null,
+    displayFactors: ['J<13', 'MACD>0', '红肥绿瘦', '量比>1.0'],
   },
   {
     code: '000858',
@@ -40,10 +44,12 @@ const mockObservationStocks: ObservationStock[] = [
     performance5d: 2.36,
     performance10d: null,
     performance20d: null,
+    displayFactors: ['J<10', 'MACD>0', '红肥绿瘦'],
   },
 ];
 
 type Period = 5 | 10 | 20;
+const PAGE_SIZE = 10;
 
 export default function ObservationDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>(5);
@@ -51,6 +57,11 @@ export default function ObservationDashboard() {
     mockObservationStocks[0] || null
   );
   const [stocks] = useState<ObservationStock[]>(mockObservationStocks);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // 分页逻辑
+  const totalPages = Math.ceil(stocks.length / PAGE_SIZE);
+  const paginatedStocks = stocks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // 计算胜率
   const calculateWinRate = (period: Period) => {
@@ -116,6 +127,25 @@ export default function ObservationDashboard() {
     );
   };
 
+  // 展示要素标签样式
+  const getDisplayFactorBadge = (factor: string) => {
+    let style = 'bg-blue-50 text-blue-700 border-blue-200';
+    if (factor.includes('J<') || factor.includes('J>')) {
+      style = 'bg-purple-50 text-purple-700 border-purple-200';
+    } else if (factor.includes('跌破') || factor.includes('放飞')) {
+      style = 'bg-red-50 text-red-600 border-red-200';
+    } else if (factor.includes('红肥绿瘦')) {
+      style = 'bg-orange-50 text-orange-700 border-orange-200';
+    } else if (factor.includes('量比')) {
+      style = 'bg-cyan-50 text-cyan-700 border-cyan-200';
+    }
+    return (
+      <Badge variant="outline" className={cn('text-xs font-normal whitespace-nowrap', style)}>
+        {factor}
+      </Badge>
+    );
+  };
+
   // 处理移出操作
   const handleRemove = (code: string) => {
     if (confirm(`确认要将 ${code} 移出观察池吗？`)) {
@@ -152,12 +182,12 @@ export default function ObservationDashboard() {
       </div>
 
       {/* 胜率统计看板 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* 总体胜率 */}
-        <div className={`rounded-lg border-2 p-6 ${getWinRateColor(overallWinRate)}`}>
-          <div className="text-sm font-medium mb-2">{selectedPeriod}日总体胜率</div>
-          <div className="text-3xl font-bold">{overallWinRate.toFixed(1)}%</div>
-          <div className="text-xs mt-2 opacity-75">
+        <div className={`rounded-lg border-2 p-4 ${getWinRateColor(overallWinRate)}`}>
+          <div className="text-xs font-medium mb-1">{selectedPeriod}日总体胜率</div>
+          <div className="text-2xl font-bold">{overallWinRate.toFixed(1)}%</div>
+          <div className="text-xs mt-1 opacity-75">
             样本数: {stocks.filter(s => {
               const perf = selectedPeriod === 5 ? s.performance5d : selectedPeriod === 10 ? s.performance10d : s.performance20d;
               return perf !== null;
@@ -167,10 +197,10 @@ export default function ObservationDashboard() {
 
         {/* 行业胜率 */}
         {industryWinRates.slice(0, 2).map(({ industry, winRate, total }) => (
-          <div key={industry} className={`rounded-lg border-2 p-6 ${getWinRateColor(winRate)}`}>
-            <div className="text-sm font-medium mb-2">{industry}</div>
-            <div className="text-3xl font-bold">{winRate.toFixed(1)}%</div>
-            <div className="text-xs mt-2 opacity-75">样本数: {total} 只</div>
+          <div key={industry} className={`rounded-lg border-2 p-4 ${getWinRateColor(winRate)}`}>
+            <div className="text-xs font-medium mb-1">{industry}</div>
+            <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
+            <div className="text-xs mt-1 opacity-75">样本数: {total} 只</div>
           </div>
         ))}
       </div>
@@ -178,30 +208,31 @@ export default function ObservationDashboard() {
       {/* 观察池股票列表 + K线图 */}
       <div className="grid grid-cols-1 lg:grid-cols-[55%_45%] gap-6">
         {/* 左侧：股票列表 */}
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
+        <div className="bg-card rounded-lg border border-border overflow-hidden flex flex-col">
           <div className="p-4 border-b border-border">
-            <h3 className="font-semibold text-foreground">观察池股票</h3>
+            <h3 className="font-semibold text-foreground">个人观察股票池</h3>
             <p className="text-sm text-muted-foreground mt-1">
               共 {stocks.length} 只股票 · 点击查看K线走势
             </p>
           </div>
 
-          <div className="overflow-auto max-h-[600px]">
-            <table className="w-full">
+          <div className="overflow-auto flex-1">
+            <table className="w-full text-sm">
               <thead className="bg-muted/50 sticky top-0">
-                <tr className="text-left text-sm text-muted-foreground">
-                  <th className="p-3 font-medium">代码</th>
-                  <th className="p-3 font-medium">名称</th>
-                  <th className="p-3 font-medium">行业</th>
-                  <th className="p-3 font-medium">纳入日期</th>
-                  <th className="p-3 font-medium">5日表现</th>
-                  <th className="p-3 font-medium">10日表现</th>
-                  <th className="p-3 font-medium">20日表现</th>
-                  <th className="p-3 font-medium">操作</th>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="p-2 font-medium">代码</th>
+                  <th className="p-2 font-medium">名称</th>
+                  <th className="p-2 font-medium">行业</th>
+                  <th className="p-2 font-medium">纳入日期</th>
+                  <th className="p-2 font-medium">5日表现</th>
+                  <th className="p-2 font-medium">10日表现</th>
+                  <th className="p-2 font-medium">20日表现</th>
+                  <th className="p-2 font-medium">展示要素</th>
+                  <th className="p-2 font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {stocks.map(stock => (
+                {paginatedStocks.map(stock => (
                   <tr
                     key={stock.code}
                     className={`border-t border-border hover:bg-muted/30 cursor-pointer transition-colors ${
@@ -209,18 +240,25 @@ export default function ObservationDashboard() {
                     }`}
                     onClick={() => setSelectedStock(stock)}
                   >
-                    <td className="p-3 font-mono text-sm">{stock.code}</td>
-                    <td className="p-3 font-medium">{stock.name}</td>
-                    <td className="p-3 text-sm text-muted-foreground">{stock.industry}</td>
-                    <td className="p-3 text-sm">{stock.addedDate}</td>
-                    <td className="p-3">{formatPerformance(stock.performance5d)}</td>
-                    <td className="p-3">{formatPerformance(stock.performance10d)}</td>
-                    <td className="p-3">{formatPerformance(stock.performance20d)}</td>
-                    <td className="p-3">
+                    <td className="p-2 font-mono text-xs">{stock.code}</td>
+                    <td className="p-2 font-medium text-sm">{stock.name}</td>
+                    <td className="p-2 text-xs text-muted-foreground">{stock.industry}</td>
+                    <td className="p-2 text-xs">{stock.addedDate}</td>
+                    <td className="p-2 text-xs">{formatPerformance(stock.performance5d)}</td>
+                    <td className="p-2 text-xs">{formatPerformance(stock.performance10d)}</td>
+                    <td className="p-2 text-xs">{formatPerformance(stock.performance20d)}</td>
+                    <td className="p-2">
+                      <div className="grid grid-cols-4 gap-1">
+                        {stock.displayFactors.map((factor, idx) => (
+                          <div key={idx}>{getDisplayFactorBadge(factor)}</div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="p-2">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 text-xs"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemove(stock.code);
@@ -234,6 +272,35 @@ export default function ObservationDashboard() {
               </tbody>
             </table>
           </div>
+
+          {/* 分页控制 */}
+          {totalPages > 1 && (
+            <div className="px-4 py-2 border-t border-border bg-muted/30 flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                第 {currentPage} / {totalPages} 页
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 右侧：K线图 */}
@@ -248,10 +315,11 @@ export default function ObservationDashboard() {
                   纳入日期: {selectedStock.addedDate} · 纳入价格: ¥{selectedStock.addedPrice.toFixed(2)}
                 </p>
               </div>
-              <KLineChart 
-                data={generateKLineData(selectedStock.addedPrice)} 
-                stockCode={selectedStock.code} 
-                stockName={selectedStock.name} 
+              
+              <KLineChart
+                stockCode={selectedStock.code}
+                stockName={selectedStock.name}
+                data={generateKLineData(selectedStock.addedPrice)}
               />
             </>
           ) : (

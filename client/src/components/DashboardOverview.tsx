@@ -52,7 +52,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
       </div>
 
       {/* 统计卡片网格 */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <StatCard
           title="当日活跃市值"
           value={marketOverview.activeMarketCap}
@@ -63,7 +63,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
         />
         <StatCard
           title="今日B1触发"
-          value={marketOverview.todayB1Count}
+          value={`${marketOverview.todayB1Count}/${marketOverview.monitorPoolCount}`}
           subtitle={marketOverview.b1Condition}
           icon={TrendingUp}
           variant="success"
@@ -86,13 +86,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
           icon={Target}
           variant="success"
         />
-        <StatCard
-          title="全市场监控池"
-          value={marketOverview.monitorPoolCount.toLocaleString()}
-          subtitle={marketOverview.dataSource}
-          icon={Database}
-          variant="default"
-        />
+
       </div>
 
       {/* 图表区域 */}

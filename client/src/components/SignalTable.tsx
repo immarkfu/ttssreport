@@ -152,12 +152,32 @@ export default function SignalTable({
     <div className="bg-card rounded-lg border border-border/50 overflow-hidden h-full flex flex-col">
       {/* 表头 */}
       <div className="px-4 py-3 border-b border-border/50 bg-muted/30">
-        <h3 className="font-medium text-sm">
-          {type === 'B1' ? '观察信号列表' : '卖出信号列表'}
-        </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          点击查看详细K线走势，勾选纳入回测池
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium text-sm">
+              {type === 'B1' ? '观察信号列表' : '卖出信号列表'}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              点击查看详细K线走势，勾选后点击按钮加入观察
+            </p>
+          </div>
+          <Button 
+            size="sm" 
+            variant="outline"
+            className="h-8 text-xs"
+            onClick={() => {
+              const checkedCodes = Array.from(backtestPool);
+              if (checkedCodes.length === 0) {
+                alert('请先勾选股票');
+                return;
+              }
+              // TODO: 调用API将勾选的股票加入观察池
+              alert(`已将 ${checkedCodes.length} 只股票加入观察池`);
+            }}
+          >
+            加入观察
+          </Button>
+        </div>
       </div>
 
       {/* 表格内容 */}
@@ -166,7 +186,7 @@ export default function SignalTable({
           <thead className="sticky top-0 bg-gray-50 z-10 border-b border-gray-200">
             <tr>
               <th className="w-10 px-2 py-2 text-center">
-                <span className="text-xs text-gray-500">回测</span>
+                <span className="text-xs text-gray-500">观察</span>
               </th>
               <th className={cn(thClass, "w-16 text-left")} onClick={() => handleSort('code')}>
                 <div className="flex items-center gap-1">
@@ -198,8 +218,8 @@ export default function SignalTable({
                   强度 <SortIcon field="signalStrength" />
                 </div>
               </th>
-              <th className={cn(thClass, "w-20 text-center")} onClick={() => handleSort('displayFactor')}>
-                <div className="flex items-center justify-center gap-1">
+              <th className={cn(thClass, "text-left")} onClick={() => handleSort('displayFactor')}>
+                <div className="flex items-center gap-1">
                   展示要素 <SortIcon field="displayFactor" />
                 </div>
               </th>
@@ -235,7 +255,13 @@ export default function SignalTable({
                   {signal.changePercent >= 0 ? '+' : ''}{signal.changePercent.toFixed(2)}%
                 </td>
                 <td className="px-2 py-2 text-center">{getStrengthBadge(signal.signalStrength)}</td>
-                <td className="px-2 py-2 text-center">{getDisplayFactorBadge(signal.displayFactor)}</td>
+                <td className="px-2 py-2">
+                  <div className="grid grid-cols-4 gap-1">
+                    {signal.displayFactor.split(',').map((factor, idx) => (
+                      <div key={idx}>{getDisplayFactorBadge(factor.trim())}</div>
+                    ))}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -245,7 +271,7 @@ export default function SignalTable({
       {/* 底部分页 */}
       <div className="px-4 py-2 border-t border-border/50 bg-muted/30 flex items-center justify-between">
         <div className="text-xs text-muted-foreground">
-          共 {signals.length} 只股票 · 已选 {backtestPool.size} 只入回测池
+          共 {signals.length} 只股票 · 已选 {backtestPool.size} 只
         </div>
         
         {totalPages > 1 && (
