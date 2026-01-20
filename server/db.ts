@@ -258,3 +258,6 @@ export async function removeFromObservationPool(userId: number, code: string): P
     throw error;
   }
 }
+
+// 导出db实例供其他模块使用
+export { getDb as db };

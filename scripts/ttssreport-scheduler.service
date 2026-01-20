@@ -1,0 +1,17 @@
+[Unit]
+Description=TTSS Report Python Scheduler
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/ttssreport
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/python3 /home/ubuntu/ttssreport/python/scheduler/main.py --start
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ubuntu/ttssreport/logs/scheduler/systemd.log
+StandardError=append:/home/ubuntu/ttssreport/logs/scheduler/systemd-error.log
+
+[Install]
+WantedBy=multi-user.target

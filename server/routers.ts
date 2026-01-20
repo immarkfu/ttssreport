@@ -4,6 +4,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { getUserConfig, upsertUserConfig, getDefaultConfig, getObservationPool, addToObservationPool, removeFromObservationPool } from "./db";
 import { z } from "zod";
+import { configTagsRouter } from "./routers/configTags";
+import { stockFilterRouter } from "./routers/stockFilter";
 
 // 用户配置输入验证schema
 const userConfigInput = z.object({
@@ -89,6 +91,12 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // 配置标签管理路由
+  configTags: configTagsRouter,
+
+  // 股票筛选路由
+  stockFilter: stockFilterRouter,
 
   // 观察池路由（用户个性化数据）
   observation: router({

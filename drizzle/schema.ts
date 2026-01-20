@@ -76,3 +76,10 @@ export const observationPool = mysqlTable("observation_pool", {
 
 export type ObservationPool = typeof observationPool.$inferSelect;
 export type InsertObservationPool = typeof observationPool.$inferInsert;
+
+
+// 导出配置标签相关schema
+export * from './schema_config_tags';
+
+// 导出股票标签相关schema
+export * from './schema_stock_tags';

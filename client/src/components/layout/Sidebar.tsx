@@ -17,6 +17,8 @@ import {
   ChevronRight,
   LogOut,
   User,
+  Tags,
+  Filter,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
@@ -42,6 +44,8 @@ const navItems = [
   { id: 'b1-signals', label: '每日B1观察提醒', icon: TrendingUp },
   { id: 's1-signals', label: '每日S1卖出提醒', icon: TrendingDown },
   { id: 'observation', label: '观察分析看板', icon: BarChart3 },
+  { id: 'config-tags', label: '配置标签管理', icon: Tags },
+  { id: 'stock-filter', label: '股票筛选', icon: Filter },
   { id: 'config', label: 'TTSS战法配置', icon: Settings },
 ];
 
