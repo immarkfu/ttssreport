@@ -2,16 +2,18 @@
  * 仪表盘概览组件
  * 设计风格：功能主义 - 市场全景数据展示
  * 支持卡片下钻：今日B1 -> B1观察页面，持仓卖出预警 -> S1卖出页面
+ * 新增：上证指数K线图（日K线+成交量+KDJ）
  */
 
-import { marketOverview, signalDistribution } from '@/data/mockData';
+import { useState, useEffect } from 'react';
+import { marketOverview, signalDistribution, generateKLineData } from '@/data/mockData';
 import StatCard from './StatCard';
+import KLineChart from './charts/KLineChart';
 import {
   TrendingUp,
   TrendingDown,
   Target,
   Activity,
-  Database,
 } from 'lucide-react';
 import {
   PieChart,
@@ -26,6 +28,14 @@ interface DashboardOverviewProps {
 }
 
 export default function DashboardOverview({ onNavigate }: DashboardOverviewProps) {
+  const [indexKLineData, setIndexKLineData] = useState<ReturnType<typeof generateKLineData>>([]);
+
+  // 生成上证指数K线数据（基准价格3000点左右）
+  useEffect(() => {
+    const data = generateKLineData(3000, 60);
+    setIndexKLineData(data);
+  }, []);
+
   // 信号强度分布数据
   const signalData = [
     { name: '强信号', value: signalDistribution.strong, color: '#22C55E' },
@@ -91,46 +101,25 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
 
       {/* 图表区域 */}
       <div className="grid grid-cols-3 gap-6">
-        {/* 知行趋势指标模拟 */}
+        {/* 上证指数K线图 */}
         <div className="col-span-2 bg-card rounded-lg border border-border/50 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-medium">知行趋势指标模拟</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">上证指数日K叠加</p>
+              <h3 className="font-medium">上证指数大盘走势</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">日K线 + 成交量 + KDJ指标</p>
             </div>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 bg-slate-800" />白线(快)
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 bg-amber-500 border-dashed" style={{ borderStyle: 'dashed' }} />黄线(慢)
-              </span>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>近60个交易日</span>
             </div>
           </div>
           
-          {/* 简化的趋势图示意 */}
-          <div className="h-64 flex items-end justify-between gap-1 px-4">
-            {Array.from({ length: 30 }).map((_, i) => {
-              const height = 40 + Math.sin(i * 0.3) * 20 + Math.random() * 30;
-              const isUp = Math.random() > 0.45;
-              return (
-                <div
-                  key={i}
-                  className="flex-1 rounded-sm transition-all hover:opacity-80"
-                  style={{
-                    height: `${height}%`,
-                    backgroundColor: isUp ? '#DC2626' : '#22C55E',
-                    minWidth: '8px',
-                  }}
-                />
-              );
-            })}
-          </div>
-          
-          <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-            <span>2025-12-01</span>
-            <span>数据区间: 近30个交易日</span>
-            <span>2026-01-16</span>
+          {/* K线图组件 */}
+          <div className="h-[480px]">
+            <KLineChart
+              data={indexKLineData}
+              stockName="上证指数"
+              stockCode="000001"
+            />
           </div>
         </div>
 
