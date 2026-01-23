@@ -16,7 +16,10 @@ export interface StockSignal {
   volume: number;
   triggerTime: string;
   triggerCondition: string;
-  displayFactor: string; // 展示要素：如 J<13、红肥绿瘦
+  displayFactor: string;
+  j_value?: number;
+  k_value?: number;
+  d_value?: number;
 }
 
 export interface KLineData {

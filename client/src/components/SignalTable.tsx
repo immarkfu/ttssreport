@@ -149,9 +149,9 @@ export default function SignalTable({
   const thClass = "px-2 py-2 text-xs font-medium text-gray-600 cursor-pointer hover:bg-gray-100 transition-colors select-none";
 
   return (
-    <div className="bg-card rounded-lg border border-border/50 overflow-hidden h-full flex flex-col">
+    <div className="bg-card rounded-lg border border-border/50 overflow-hidden h-full flex flex-col min-h-0">
       {/* 表头 */}
-      <div className="px-4 py-3 border-b border-border/50 bg-muted/30">
+      <div className="px-4 py-2 border-b border-border/50 bg-muted/30">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-medium text-sm">
@@ -181,14 +181,14 @@ export default function SignalTable({
       </div>
 
       {/* 表格内容 */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-gray-50 z-10 border-b border-gray-200">
             <tr>
-              <th className="w-10 px-2 py-2 text-center">
+              <th className="w-8 px-1 py-2 text-center">
                 <span className="text-xs text-gray-500">观察</span>
               </th>
-              <th className={cn(thClass, "w-16 text-left")} onClick={() => handleSort('code')}>
+              <th className={cn(thClass, "w-14 text-left")} onClick={() => handleSort('code')}>
                 <div className="flex items-center gap-1">
                   代码 <SortIcon field="code" />
                 </div>
@@ -208,7 +208,7 @@ export default function SignalTable({
                   现价 <SortIcon field="price" />
                 </div>
               </th>
-              <th className={cn(thClass, "w-16 text-right")} onClick={() => handleSort('changePercent')}>
+              <th className={cn(thClass, "w-18 text-right")} onClick={() => handleSort('changePercent')}>
                 <div className="flex items-center justify-end gap-1">
                   涨跌幅 <SortIcon field="changePercent" />
                 </div>
@@ -218,7 +218,7 @@ export default function SignalTable({
                   强度 <SortIcon field="signalStrength" />
                 </div>
               </th>
-              <th className={cn(thClass, "text-left")} onClick={() => handleSort('displayFactor')}>
+              <th className={cn(thClass, "w-[140px] text-left")} onClick={() => handleSort('displayFactor')}>
                 <div className="flex items-center gap-1">
                   展示要素 <SortIcon field="displayFactor" />
                 </div>
@@ -231,11 +231,11 @@ export default function SignalTable({
                 key={signal.id}
                 onClick={() => onSelect(signal)}
                 className={cn(
-                  'cursor-pointer transition-colors hover:bg-gray-50 border-b border-gray-100',
+                  'cursor-pointer transition-colors hover:bg-gray-50 border-b border-gray-100 h-[67px]',
                   selectedId === signal.id && 'bg-primary/5 hover:bg-primary/10'
                 )}
               >
-                <td className="px-2 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                <td className="w-8 px-1 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     checked={backtestPool.has(signal.code)}
                     onCheckedChange={(checked) => {
@@ -244,20 +244,20 @@ export default function SignalTable({
                     className="data-[state=checked]:bg-primary"
                   />
                 </td>
-                <td className="px-2 py-2 font-mono text-xs text-gray-700">{signal.code}</td>
-                <td className="px-2 py-2 font-medium text-sm text-gray-900">{signal.name}</td>
-                <td className="px-2 py-2 text-xs text-gray-500">{signal.industry}</td>
-                <td className="px-2 py-2 text-right font-mono text-sm">{signal.price.toFixed(2)}</td>
+                <td className="w-14 px-1 py-2.5 font-mono text-xs text-gray-700">{signal.code}</td>
+                <td className="w-20 px-1 py-2.5 font-medium text-sm text-gray-900 truncate" title={signal.name}>{signal.name}</td>
+                <td className="w-16 px-1 py-2.5 text-xs text-gray-500 truncate" title={signal.industry}>{signal.industry}</td>
+                <td className="w-16 px-1 py-2.5 text-right font-mono text-xs">{signal.price.toFixed(2)}</td>
                 <td className={cn(
-                  'px-2 py-2 text-right font-mono font-medium text-sm',
+                  'w-18 px-1 py-2.5 text-right font-mono font-medium text-xs',
                   signal.changePercent >= 0 ? 'text-red-500' : 'text-emerald-500'
                 )}>
                   {signal.changePercent >= 0 ? '+' : ''}{signal.changePercent.toFixed(2)}%
                 </td>
-                <td className="px-2 py-2 text-center">{getStrengthBadge(signal.signalStrength)}</td>
-                <td className="px-2 py-2">
-                  <div className="grid grid-cols-4 gap-1">
-                    {signal.displayFactor.split(',').map((factor, idx) => (
+                <td className="w-12 px-1 py-2.5 text-center">{getStrengthBadge(signal.signalStrength)}</td>
+                <td className="w-[140px] px-1 py-2.5">
+                  <div className="grid grid-cols-3 gap-0.5">
+                    {signal.displayFactor.split(',').slice(0, 15).map((factor, idx) => (
                       <div key={idx}>{getDisplayFactorBadge(factor.trim())}</div>
                     ))}
                   </div>
@@ -269,7 +269,7 @@ export default function SignalTable({
       </ScrollArea>
 
       {/* 底部分页 */}
-      <div className="px-4 py-2 border-t border-border/50 bg-muted/30 flex items-center justify-between">
+      <div className="px-4 py-1.5 border-t border-border/50 bg-muted/30 flex items-center justify-between">
         <div className="text-xs text-muted-foreground">
           共 {signals.length} 只股票 · 已选 {backtestPool.size} 只
         </div>

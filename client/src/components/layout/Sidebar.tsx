@@ -10,7 +10,6 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Settings,
   Database,
   Heart,
   ChevronLeft,
@@ -18,16 +17,18 @@ import {
   LogOut,
   User,
   Tags,
-  Filter,
+  Users,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 interface UserInfo {
   id: number;
-  openId: string;
-  name: string | null;
-  email: string | null;
+  openId?: string;
+  name?: string | null;
+  email?: string | null;
+  role?: string;
+  username?: string;
 }
 
 interface SidebarProps {
@@ -39,17 +40,20 @@ interface SidebarProps {
   onLogout?: () => void;
 }
 
-const navItems = [
+const baseNavItems = [
   { id: 'dashboard', label: '总览仪表盘', icon: LayoutDashboard },
   { id: 'b1-signals', label: '每日B1观察提醒', icon: TrendingUp },
-  { id: 's1-signals', label: '每日S1卖出提醒', icon: TrendingDown },
+  // { id: 's1-signals', label: '每日S1卖出提醒', icon: TrendingDown },
   { id: 'observation', label: '观察分析看板', icon: BarChart3 },
-  { id: 'config-tags', label: '配置标签管理', icon: Tags },
-  { id: 'stock-filter', label: '股票筛选', icon: Filter },
-  { id: 'config', label: 'TTSS战法配置', icon: Settings },
+  // { id: 'config-tags', label: '配置标签管理', icon: Tags },
+];
+
+const adminNavItems = [
+  { id: 'user-management', label: '账号管理', icon: Users },
 ];
 
 export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse, user, onLogout }: SidebarProps) {
+  const navItems = user?.role === 'admin' ? [...baseNavItems, ...adminNavItems] : baseNavItems;
   return (
     <aside 
       className={cn(
@@ -124,8 +128,8 @@ export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCol
                     <User className="w-4 h-4 text-primary" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{user.name || '用户'}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user.email || ''}</p>
+                    <p className="text-sm font-medium truncate">{user.username || user.name || '用户'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.role || user.email || ''}</p>
                   </div>
                 </div>
                 <Tooltip delayDuration={0}>
@@ -185,7 +189,7 @@ export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCol
                 </TooltipTrigger>
                 <TooltipContent side="right" sideOffset={10}>
                   <div className="text-sm">
-                    <p className="font-medium">{user.name || '用户'}</p>
+                    <p className="font-medium">{user.username || user.name || '用户'}</p>
                     <p className="text-xs text-muted-foreground">点击退出登录</p>
                   </div>
                 </TooltipContent>

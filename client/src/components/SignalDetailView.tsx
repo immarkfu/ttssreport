@@ -9,8 +9,9 @@ import { StockSignal, generateKLineData } from '@/data/mockData';
 import SignalTable from './SignalTable';
 import KLineChart from './charts/KLineChart';
 import ConfigPanel, { B1Config, S1Config } from './ConfigPanel';
-import { trpc } from '@/lib/trpc';
 import { toast } from 'sonner';
+import { b1SignalService, B1SignalResult, TagItem } from '@/services/b1SignalService';
+import { configService, UserConfig } from '@/services/configService';
 
 interface SignalDetailViewProps {
   signals: StockSignal[];
@@ -21,6 +22,7 @@ interface SignalDetailViewProps {
 
 const defaultB1Config: B1Config = {
   b1JThreshold: 13,
+  b1MacdDifThreshold: 0,
   b1VolumeRatio: 1.0,
   b1RedGreenCondition: true,
 };
@@ -40,34 +42,86 @@ export default function SignalDetailView({
 }: SignalDetailViewProps) {
   const [selectedSignal, setSelectedSignal] = useState<StockSignal | null>(null);
   const [klineData, setKlineData] = useState<ReturnType<typeof generateKLineData>>([]);
+  const [localSignals, setLocalSignals] = useState<StockSignal[]>(signals);
   const [filteredSignals, setFilteredSignals] = useState<StockSignal[]>(signals);
+  const [loading, setLoading] = useState(false);
   
-  // 配置状态
   const [config, setConfig] = useState<B1Config | S1Config>(
     type === 'B1' ? defaultB1Config : defaultS1Config
   );
+  const [serverConfig, setServerConfig] = useState<UserConfig | null>(null);
   
-  // 防抖定时器
+  const [tags, setTags] = useState<TagItem[]>([]);
+  const [selectedTagCodes, setSelectedTagCodes] = useState<string[]>([]);
+  const [tradeDate, setTradeDate] = useState<string>('');
+  const [filterLoading, setFilterLoading] = useState(false);
+  
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // 获取服务器配置
-  const { data: serverConfig } = trpc.config.get.useQuery();
-  
-  // 更新配置mutation
-  const updateConfig = trpc.config.update.useMutation({
-    onSuccess: () => {
-      toast.success('配置已保存', {
-        description: '参数设置已更新',
-      });
-    },
-    onError: (error) => {
-      toast.error('保存失败', {
-        description: error.message,
-      });
-    },
-  });
+  useEffect(() => {
+    configService.get().then(setServerConfig).catch(() => {});
+  }, []);
 
-  // 从服务器配置初始化本地状态
+  useEffect(() => {
+    if (type === 'B1') {
+      b1SignalService.getConfigTags().then((res) => {
+        setTags(res.data);
+        const enabledCodes = res.data.filter(t => t.is_enabled === 1).map(t => t.tag_code);
+        setSelectedTagCodes(enabledCodes);
+        const jTag = res.data.find(t => t.tag_code === 'j_lt_13_qfq');
+        const macdTag = res.data.find(t => t.tag_code === 'macd_dif_gt_0_qfq');
+        setConfig(prev => ({
+          ...prev,
+          b1JThreshold: jTag?.threshold_value ?? 13,
+          b1MacdDifThreshold: macdTag?.threshold_value ?? 0,
+        } as B1Config));
+      }).catch(() => {});
+    }
+  }, [type]);
+
+  const mapB1Result = useCallback((item: B1SignalResult): StockSignal => ({
+    id: item.ts_code,
+    code: item.ts_code.replace('.SH', '').replace('.SZ', ''),
+    name: item.stock_name,
+    industry: item.industry || '未知',
+    signalType: 'B1' as const,
+    signalStrength: item.signal_strength === 'strong' ? 'strong' : item.signal_strength === 'medium' ? 'medium' : 'weak',
+    price: item.close_price,
+    change: item.price_change,
+    changePercent: item.pct_change,
+    volume: item.volume,
+    triggerTime: item.trigger_time,
+    triggerCondition: item.display_factor,
+    displayFactor: item.display_factor,
+    j_value: item.j_value,
+    k_value: item.k_value,
+    d_value: item.d_value,
+  }), []);
+
+  useEffect(() => {
+    if (type === 'B1') {
+      const fetchB1Data = async () => {
+        try {
+          setLoading(true);
+          const response = await b1SignalService.getResults(undefined, undefined, 100);
+          const mapped = response.data.map(mapB1Result);
+          setLocalSignals(mapped);
+          setFilteredSignals(mapped);
+        } catch (error) {
+          console.error('获取B1信号失败:', error);
+          setLocalSignals(signals);
+          setFilteredSignals(signals);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchB1Data();
+    } else {
+      setLocalSignals(signals);
+      setFilteredSignals(signals);
+    }
+  }, [type, signals, mapB1Result]);
+
   useEffect(() => {
     if (serverConfig) {
       if (type === 'B1') {
@@ -90,23 +144,8 @@ export default function SignalDetailView({
   // 根据配置过滤信号（实时预览）
   const filterSignalsByConfig = useCallback((signals: StockSignal[], config: B1Config | S1Config) => {
     if (type === 'B1') {
-      const b1Config = config as B1Config;
-      return signals.filter(signal => {
-        // 根据J值阈值过滤
-        const jValue = parseFloat(signal.triggerCondition.match(/J值:(\d+\.?\d*)/)?.[1] || '0');
-        if (jValue > b1Config.b1JThreshold) return false;
-        
-        // 根据量比阈值过滤
-        const volumeRatio = parseFloat(signal.triggerCondition.match(/量比:(\d+\.?\d*)x/)?.[1] || '0');
-        if (volumeRatio < b1Config.b1VolumeRatio) return false;
-        
-        // 根据红肥绿瘦条件过滤
-        if (b1Config.b1RedGreenCondition && !signal.triggerCondition.includes('红肥绿瘦')) {
-          return false;
-        }
-        
-        return true;
-      });
+      // B1数据已由后端筛选，直接返回
+      return signals;
     } else {
       const s1Config = config as S1Config;
       return signals.filter(signal => {
@@ -141,7 +180,7 @@ export default function SignalDetailView({
     }
 
     debounceTimer.current = setTimeout(() => {
-      const filtered = filterSignalsByConfig(signals, config);
+      const filtered = filterSignalsByConfig(localSignals, config);
       setFilteredSignals(filtered);
     }, 500);
 
@@ -150,7 +189,7 @@ export default function SignalDetailView({
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [config, signals, filterSignalsByConfig]);
+  }, [config, localSignals, filterSignalsByConfig]);
 
   // 当filteredSignals或type变化时，重置选中状态为第一只股票
   useEffect(() => {
@@ -175,26 +214,94 @@ export default function SignalDetailView({
     setSelectedSignal(signal);
   };
 
+  const handleTagUpdate = async (id: number, thresholdValue: number | null, isUpdate: boolean) => {
+    try {
+      await b1SignalService.saveConfigTag(id, thresholdValue, isUpdate);
+      toast.success(isUpdate ? '阈值已更新' : '启用状态已切换');
+      const res = await b1SignalService.getConfigTags();
+      setTags(res.data);
+    } catch (error: any) {
+      toast.error('更新失败', { description: error.message });
+    }
+  };
+
   const handleConfigChange = (newConfig: B1Config | S1Config) => {
     setConfig(newConfig);
   };
 
-  const handleConfigSave = () => {
-    if (type === 'B1') {
+  const handleConfigSave = async () => {
+    try {
+      if (type === 'B1') {
+        const b1Config = config as B1Config;
+        await configService.update({
+          b1JValueThreshold: b1Config.b1JThreshold,
+          b1MacdCondition: b1Config.b1MacdDifThreshold,
+          b1VolumeRatio: b1Config.b1VolumeRatio.toString(),
+          b1RedGreenCondition: b1Config.b1RedGreenCondition,
+        });
+      } else {
+        const s1Config = config as S1Config;
+        await configService.update({
+          s1WhiteLineBreak: s1Config.s1BreakWhiteLine,
+          s1LongYangFly: s1Config.s1LongYangFly,
+          s1JValueHigh: s1Config.s1JThreshold,
+          s1VolumeCondition: s1Config.s1VolumeCondition,
+        });
+      }
+      toast.success('配置已保存', { description: '参数设置已更新' });
+    } catch (error: any) {
+      toast.error('保存失败', { description: error.message });
+    }
+  };
+
+  const handleFilter = async () => {
+    if (!tradeDate) return;
+    try {
+      setFilterLoading(true);
       const b1Config = config as B1Config;
-      updateConfig.mutate({
-        b1JValueThreshold: b1Config.b1JThreshold,
-        b1VolumeRatio: b1Config.b1VolumeRatio.toString(),
-        b1RedGreenCondition: b1Config.b1RedGreenCondition,
-      });
-    } else {
-      const s1Config = config as S1Config;
-      updateConfig.mutate({
-        s1WhiteLineBreak: s1Config.s1BreakWhiteLine,
-        s1LongYangFly: s1Config.s1LongYangFly,
-        s1JValueHigh: s1Config.s1JThreshold,
-        s1VolumeCondition: s1Config.s1VolumeCondition,
-      });
+      const response = await b1SignalService.filterAndTag(
+        tradeDate, 
+        selectedTagCodes.length > 0 ? selectedTagCodes : undefined, 
+        false,
+        b1Config.b1JThreshold,
+        b1Config.b1MacdDifThreshold
+      );
+      const mapped = response.data.map(mapB1Result);
+      setLocalSignals(mapped);
+      setFilteredSignals(mapped);
+      toast.success('筛选完成', { description: `共${response.total}条记录` });
+    } catch (error: any) {
+      toast.error('筛选失败', { description: error.message });
+    } finally {
+      setFilterLoading(false);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    if (!tradeDate) return;
+    try {
+      setFilterLoading(true);
+      const b1Config = config as B1Config;
+      const response = await b1SignalService.filterAndTag(
+        tradeDate, 
+        selectedTagCodes.length > 0 ? selectedTagCodes : undefined, 
+        true,
+        b1Config.b1JThreshold,
+        b1Config.b1MacdDifThreshold
+      );
+      const mapped = response.data.map(mapB1Result);
+      setLocalSignals(mapped);
+      setFilteredSignals(mapped);
+      if (selectedTagCodes.length > 0) {
+        await b1SignalService.saveTagConfig(selectedTagCodes);
+      }
+      await b1SignalService.saveThreshold('j_lt_13_qfq', b1Config.b1JThreshold);
+      await b1SignalService.saveThreshold('macd_dif_gt_0_qfq', b1Config.b1MacdDifThreshold);
+      toast.success('保存成功', { description: `共${response.saved}条记录已保存` });
+    } catch (error: any) {
+      toast.error('保存失败', { description: error.message });
+    } finally {
+      setFilterLoading(false);
     }
   };
 
@@ -232,6 +339,11 @@ export default function SignalDetailView({
               data={klineData}
               stockName={selectedSignal?.name}
               stockCode={selectedSignal?.code}
+              kdjValues={selectedSignal ? {
+                j: selectedSignal.j_value ?? 0,
+                k: selectedSignal.k_value ?? 0,
+                d: selectedSignal.d_value ?? 0,
+              } : undefined}
             />
           </div>
         </div>
@@ -243,6 +355,15 @@ export default function SignalDetailView({
         config={config}
         onChange={handleConfigChange}
         onSave={handleConfigSave}
+        tags={tags}
+        selectedTagCodes={selectedTagCodes}
+        onTagCodesChange={setSelectedTagCodes}
+        tradeDate={tradeDate}
+        onTradeDateChange={setTradeDate}
+        onFilter={handleFilter}
+        onSaveConfig={handleSaveConfig}
+        filterLoading={filterLoading}
+        onTagUpdate={handleTagUpdate}
       />
     </div>
   );

@@ -2,13 +2,14 @@
  * 观察分析看板 - 显示观察池股票的表现统计和胜率分析
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import KLineChart from '@/components/charts/KLineChart';
 import { generateKLineData } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+import { b1SignalService, B1SignalResult } from '@/services/b1SignalService';
 
 interface ObservationStock {
   code: string;
@@ -22,32 +23,6 @@ interface ObservationStock {
   displayFactors: string[]; // 展示要素数组
 }
 
-// 模拟数据
-const mockObservationStocks: ObservationStock[] = [
-  {
-    code: '600519',
-    name: '贵州茅台',
-    industry: '白酒',
-    addedDate: '2026-01-10',
-    addedPrice: 1662.50,
-    performance5d: 1.53,
-    performance10d: null,
-    performance20d: null,
-    displayFactors: ['J<13', 'MACD>0', '红肥绿瘦', '量比>1.0'],
-  },
-  {
-    code: '000858',
-    name: '五粮液',
-    industry: '白酒',
-    addedDate: '2026-01-10',
-    addedPrice: 139.08,
-    performance5d: 2.36,
-    performance10d: null,
-    performance20d: null,
-    displayFactors: ['J<10', 'MACD>0', '红肥绿瘦'],
-  },
-];
-
 type Period = 5 | 10 | 20;
 const PAGE_SIZE = 10;
 
@@ -57,21 +32,55 @@ interface ObservationDashboardProps {
 
 export default function ObservationDashboard({ backtestPool }: ObservationDashboardProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<Period>(5);
-  const [selectedStock, setSelectedStock] = useState<ObservationStock | null>(
-    mockObservationStocks[0] || null
-  );
-  // 仅显示加入观察池的股票
-  const observationStocks = mockObservationStocks.filter(stock => backtestPool.has(stock.code));
-  const [stocks] = useState<ObservationStock[]>(observationStocks);
+  const [selectedStock, setSelectedStock] = useState<ObservationStock | null>(null);
+  const [stocks, setStocks] = useState<ObservationStock[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchB1Signals = async () => {
+      try {
+        setLoading(true);
+        const response = await b1SignalService.getResults();
+        
+        const mappedStocks: ObservationStock[] = response.data.map((item: B1SignalResult) => ({
+          code: item.ts_code.replace('.SH', '').replace('.SZ', ''),
+          name: item.stock_name,
+          industry: item.industry || '未知',
+          addedDate: `${item.trade_date.slice(0, 4)}-${item.trade_date.slice(4, 6)}-${item.trade_date.slice(6, 8)}`,
+          addedPrice: item.close_price,
+          performance5d: null,
+          performance10d: null,
+          performance20d: null,
+          displayFactors: item.display_factor.split(', '),
+        }));
+        
+        setStocks(mappedStocks);
+        if (mappedStocks.length > 0) {
+          setSelectedStock(mappedStocks[0]);
+        }
+      } catch (error) {
+        console.error('获取B1信号失败:', error);
+        setStocks([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchB1Signals();
+  }, []);
+  
+  const filteredStocks = backtestPool.size > 0
+    ? stocks.filter(stock => backtestPool.has(stock.code))
+    : stocks;
 
   // 分页逻辑
-  const totalPages = Math.ceil(stocks.length / PAGE_SIZE);
-  const paginatedStocks = stocks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.ceil(filteredStocks.length / PAGE_SIZE);
+  const paginatedStocks = filteredStocks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // 计算胜率
   const calculateWinRate = (period: Period) => {
-    const validStocks = stocks.filter(s => {
+    const validStocks = filteredStocks.filter(s => {
       const perf = period === 5 ? s.performance5d : period === 10 ? s.performance10d : s.performance20d;
       return perf !== null;
     });
@@ -90,7 +99,7 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
   const calculateIndustryWinRate = (period: Period) => {
     const industryMap = new Map<string, { total: number; win: number }>();
     
-    stocks.forEach(s => {
+    filteredStocks.forEach(s => {
       const perf = period === 5 ? s.performance5d : period === 10 ? s.performance10d : s.performance20d;
       if (perf === null) return;
       
@@ -160,6 +169,10 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
     }
   };
 
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">加载中...</div>;
+  }
+
   return (
     <div className="space-y-6">
       {/* 风险提示 */}
@@ -193,8 +206,8 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
         <div className={`rounded-lg border-2 p-4 ${getWinRateColor(overallWinRate)}`}>
           <div className="text-xs font-medium mb-1">{selectedPeriod}日总体胜率</div>
           <div className="text-2xl font-bold">{overallWinRate.toFixed(1)}%</div>
-          <div className="text-xs mt-1 opacity-75">
-            样本数: {stocks.filter(s => {
+            <div className="text-xs mt-1 opacity-75">
+            样本数: {filteredStocks.filter(s => {
               const perf = selectedPeriod === 5 ? s.performance5d : selectedPeriod === 10 ? s.performance10d : s.performance20d;
               return perf !== null;
             }).length} 只
@@ -218,7 +231,7 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
           <div className="p-4 border-b border-border">
             <h3 className="font-semibold text-foreground">个人观察股票池</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              共 {stocks.length} 只股票 · 点击查看K线走势
+              共 {filteredStocks.length} 只股票 · 点击查看K线走势
             </p>
           </div>
 

@@ -4,19 +4,32 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import Home from "./pages/Home";
 import ConfigTags from "./pages/ConfigTags";
-import StockFilter from "./pages/StockFilter";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import UserManagement from "./pages/UserManagement";
+import WechatCallback from "./pages/WechatCallback";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/config-tags"} component={ConfigTags} />
-      <Route path={"/stock-filter"} component={StockFilter} />
+      <Route path={"/login"} component={Login} />
+      <Route path={"/register"} component={Register} />
+      <Route path={"/wechat-success"} component={WechatCallback} />
+      <Route path={"/"}>
+        <ProtectedRoute><Home /></ProtectedRoute>
+      </Route>
+      <Route path={"/config-tags"}>
+        <ProtectedRoute><ConfigTags /></ProtectedRoute>
+      </Route>
+      <Route path={"/user-management"}>
+        <ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>
+      </Route>
       <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
   );
@@ -30,15 +43,17 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider
+          defaultTheme="light"
+          // switchable
+        >
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ThemeProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

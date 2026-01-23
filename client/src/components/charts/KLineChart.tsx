@@ -21,10 +21,11 @@ interface KLineChartProps {
   data: KLineData[];
   stockName?: string;
   stockCode?: string;
-  entryDate?: string; // 纳入观察池的日期，格式为YYYY-MM-DD
+  entryDate?: string;
+  kdjValues?: { j: number; k: number; d: number };
 }
 
-export default function KLineChart({ data, stockName, stockCode, entryDate }: KLineChartProps) {
+export default function KLineChart({ data, stockName, stockCode, entryDate, kdjValues: propsKdjValues }: KLineChartProps) {
   const mainChartRef = useRef<HTMLDivElement>(null);
   const volumeChartRef = useRef<HTMLDivElement>(null);
   const kdjChartRef = useRef<HTMLDivElement>(null);
@@ -219,8 +220,14 @@ export default function KLineChart({ data, stockName, stockCode, entryDate }: KL
     dSeries.setData(kdjData.map(d => ({ time: d.time, value: d.d! })));
     jSeries.setData(kdjData.map(d => ({ time: d.time, value: d.j! })));
 
-    // 设置最新KDJ值
-    if (kdjData.length > 0) {
+    // 设置最新KDJ值（优先使用传入的真实值）
+    if (propsKdjValues) {
+      setKdjValues({
+        k: Math.round(propsKdjValues.k * 100) / 100,
+        d: Math.round(propsKdjValues.d * 100) / 100,
+        j: Math.round(propsKdjValues.j * 100) / 100,
+      });
+    } else if (kdjData.length > 0) {
       const latest = kdjData[kdjData.length - 1];
       setKdjValues({
         k: Math.round(latest.k! * 100) / 100,

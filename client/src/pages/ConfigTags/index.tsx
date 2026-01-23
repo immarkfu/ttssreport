@@ -33,26 +33,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { trpc } from '@/lib/trpc';
+import { configTagsService, ConfigTag } from '@/services/configTagsService';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-
-interface ConfigTag {
-  id: number;
-  name: string;
-  meaning: string;
-  calculationLogic: string;
-  category: 'plus' | 'minus';
-  tagType: 'system' | 'custom';
-  strategyType: string;
-  sortOrder: number;
-  isEnabled: boolean;
-  createdBy: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 interface TagFormData {
   name: string;
@@ -151,17 +136,22 @@ export default function ConfigTagsManagement() {
     strategyType: 'B1',
   });
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState<ConfigTag[]>([]);
 
-  // tRPC hooks
-  const { data: allTags, refetch } = trpc.configTags.list.useQuery({
-    strategyType: activeStrategy,
-  });
-  const createMutation = trpc.configTags.create.useMutation();
-  const updateMutation = trpc.configTags.update.useMutation();
-  const deleteMutation = trpc.configTags.delete.useMutation();
-  const toggleMutation = trpc.configTags.toggleEnabled.useMutation();
-  const reorderMutation = trpc.configTags.reorder.useMutation();
-  const validateMutation = trpc.configTags.validateLogic.useMutation();
+  const fetchTags = async () => {
+    try {
+      const data = await configTagsService.list({ strategyType: activeStrategy });
+      setAllTags(data);
+    } catch (error) {
+      console.error('Failed to fetch tags:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchTags();
+  }, [activeStrategy]);
+
+  const refetch = fetchTags;
 
   // 拖拽传感器
   const sensors = useSensors(
@@ -207,12 +197,9 @@ export default function ConfigTagsManagement() {
     setIsDialogOpen(true);
   };
 
-  // 验证计算逻辑
   const handleValidateLogic = async () => {
     try {
-      const result = await validateMutation.mutateAsync({
-        calculationLogic: formData.calculationLogic,
-      });
+      const result = await configTagsService.validateLogic(formData.calculationLogic);
       if (result.valid) {
         toast.success('验证通过', { description: '计算逻辑格式正确' });
         setValidationErrors([]);
@@ -225,19 +212,13 @@ export default function ConfigTagsManagement() {
     }
   };
 
-  // 保存标签
   const handleSave = async () => {
     try {
       if (editingTag) {
-        // 更新
-        await updateMutation.mutateAsync({
-          id: editingTag.id,
-          ...formData,
-        });
+        await configTagsService.update({ id: editingTag.id, ...formData });
         toast.success('更新成功', { description: '标签已更新' });
       } else {
-        // 新增
-        await createMutation.mutateAsync(formData);
+        await configTagsService.create(formData);
         toast.success('创建成功', { description: '新标签已创建' });
       }
       setIsDialogOpen(false);
@@ -247,11 +228,10 @@ export default function ConfigTagsManagement() {
     }
   };
 
-  // 删除标签
   const handleDelete = async () => {
     if (!deletingTag) return;
     try {
-      await deleteMutation.mutateAsync({ id: deletingTag.id });
+      await configTagsService.delete(deletingTag.id);
       toast.success('删除成功', { description: '标签已删除' });
       setIsDeleteDialogOpen(false);
       setDeletingTag(null);
@@ -261,13 +241,9 @@ export default function ConfigTagsManagement() {
     }
   };
 
-  // 切换启用状态
   const handleToggle = async (tag: ConfigTag) => {
     try {
-      await toggleMutation.mutateAsync({
-        id: tag.id,
-        isEnabled: !tag.isEnabled,
-      });
+      await configTagsService.toggleEnabled(tag.id, !tag.isEnabled);
       toast.success(tag.isEnabled ? '已禁用' : '已启用');
       refetch();
     } catch (error: any) {
@@ -275,7 +251,6 @@ export default function ConfigTagsManagement() {
     }
   };
 
-  // 拖拽结束
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -287,14 +262,12 @@ export default function ConfigTagsManagement() {
     setTags(newTags);
 
     try {
-      await reorderMutation.mutateAsync({
-        tagIds: newTags.map(tag => tag.id),
-      });
+      await configTagsService.reorder(newTags.map(tag => tag.id));
       toast.success('排序已保存');
       refetch();
     } catch (error: any) {
       toast.error('排序失败', { description: error.message });
-      setTags(tags); // 恢复原顺序
+      setTags(tags);
     }
   };
 

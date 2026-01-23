@@ -5,43 +5,31 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/_core/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import DashboardOverview from '@/components/DashboardOverview';
 import SignalDetailView from '@/components/SignalDetailView';
 import ObservationDashboard from '@/components/ObservationDashboard';
-import ConfigView from '@/components/ConfigView';
 import { b1SignalList, s1SignalList } from '@/data/mockData';
-import { getLoginUrl } from '@/const';
 import { Button } from '@/components/ui/button';
-import { LogIn, Loader2 } from 'lucide-react';
-import { trpc } from '@/lib/trpc';
+import { LogIn } from 'lucide-react';
+import { configService } from '@/services/configService';
 
 export default function Home() {
-  const { user, loading, isAuthenticated, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
-  // 回测池状态 - 存储选中的股票代码
   const [backtestPool, setBacktestPool] = useState<Set<string>>(new Set());
 
-  // 从服务器加载回测池数据
-  const { data: savedBacktestPool } = trpc.config.getBacktestPool.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
-
-  // 保存回测池到服务器
-  const saveBacktestPoolMutation = trpc.config.saveBacktestPool.useMutation();
-
-  // 初始化回测池数据
   useEffect(() => {
-    if (savedBacktestPool) {
-      setBacktestPool(new Set(savedBacktestPool));
-    }
-  }, [savedBacktestPool]);
+    if (!token) return;
+    configService.getBacktestPool().then(codes => {
+      setBacktestPool(new Set(codes));
+    }).catch(() => {});
+  }, [token]);
 
-  // 处理回测池变更
   const handleBacktestPoolChange = (code: string, checked: boolean) => {
     setBacktestPool(prev => {
       const newPool = new Set(prev);
@@ -50,8 +38,7 @@ export default function Home() {
       } else {
         newPool.delete(code);
       }
-      // 保存到服务器
-      saveBacktestPoolMutation.mutate({ codes: Array.from(newPool) });
+      configService.saveBacktestPool(Array.from(newPool)).catch(() => {});
       return newPool;
     });
   };
@@ -61,46 +48,6 @@ export default function Home() {
     setActiveTab(tab);
   };
 
-  // 登录加载中
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">正在加载...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 未登录状态 - 显示登录页面
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="max-w-md w-full mx-4">
-          <div className="bg-card rounded-lg border border-border/50 p-8 text-center">
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-2xl font-bold text-primary">知行</span>
-            </div>
-            <h1 className="text-2xl font-semibold mb-2">知行量化数据平台</h1>
-            <p className="text-muted-foreground mb-6">
-              踏踏实实 · 知行合一 · Love & Share
-            </p>
-            <Button
-              className="w-full"
-              onClick={() => window.location.href = getLoginUrl()}
-            >
-              <LogIn className="w-4 h-4 mr-2" />
-              登录以继续
-            </Button>
-            <p className="text-xs text-muted-foreground mt-4">
-              数据仅供参考，不构成投资建议
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const renderContent = () => {
     switch (activeTab) {
@@ -109,7 +56,7 @@ export default function Home() {
       case 'b1-signals':
         return (
           <SignalDetailView 
-            signals={b1SignalList} 
+            signals={[]} 
             type="B1" 
             backtestPool={backtestPool}
             onBacktestPoolChange={handleBacktestPoolChange}
@@ -126,8 +73,6 @@ export default function Home() {
         );
       case 'observation':
         return <ObservationDashboard backtestPool={backtestPool} />;
-      case 'config':
-        return <ConfigView />;
       default:
         return <DashboardOverview onNavigate={handleNavigate} />;
     }
