@@ -1,11 +1,11 @@
 /**
- * 观察分析看板 - 显示观察池股票的表现统计和胜率分析
+ * 个人观察统计池 - 显示观察池股票的表现统计和胜率分析
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertCircle, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import KLineChart from '@/components/charts/KLineChart';
 import { generateKLineData } from '@/data/mockData';
 import { cn } from '@/lib/utils';
@@ -24,6 +24,8 @@ interface ObservationStock {
 }
 
 type Period = 5 | 10 | 20;
+type SortField = 'code' | 'name' | 'industry' | 'addedDate' | 'performance5d' | 'performance10d' | 'performance20d';
+type SortDirection = 'asc' | 'desc' | null;
 const PAGE_SIZE = 10;
 
 interface ObservationDashboardProps {
@@ -36,6 +38,8 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
   const [stocks, setStocks] = useState<ObservationStock[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   useEffect(() => {
     const fetchB1Signals = async () => {
@@ -70,64 +74,78 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
     fetchB1Signals();
   }, []);
   
-  const filteredStocks = backtestPool.size > 0
-    ? stocks.filter(stock => backtestPool.has(stock.code))
-    : stocks;
+  const filteredStocks = useMemo(() => {
+    let result = backtestPool.size > 0
+      ? stocks.filter(stock => backtestPool.has(stock.code))
+      : stocks;
+
+    return result;
+  }, [stocks, backtestPool]);
+
+  // 排序逻辑
+  const sortedStocks = useMemo(() => {
+    if (!sortField || !sortDirection) return filteredStocks;
+
+    return [...filteredStocks].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'code':
+          comparison = a.code.localeCompare(b.code);
+          break;
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'industry':
+          comparison = a.industry.localeCompare(b.industry);
+          break;
+        case 'addedDate':
+          comparison = new Date(a.addedDate).getTime() - new Date(b.addedDate).getTime();
+          break;
+        case 'performance5d':
+        case 'performance10d':
+        case 'performance20d':
+          if (a[sortField] === null && b[sortField] === null) comparison = 0;
+          else if (a[sortField] === null) comparison = 1;
+          else if (b[sortField] === null) comparison = -1;
+          else comparison = (a[sortField] as number) - (b[sortField] as number);
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredStocks, sortField, sortDirection]);
+
+  // 处理排序点击
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortField(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1); // 排序后回到第一页
+  };
+
+  // 排序图标
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ChevronsUpDown className="w-3 h-3 text-gray-400" />;
+    }
+    if (sortDirection === 'asc') {
+      return <ChevronUp className="w-3 h-3 text-primary" />;
+    }
+    return <ChevronDown className="w-3 h-3 text-primary" />;
+  };
 
   // 分页逻辑
-  const totalPages = Math.ceil(filteredStocks.length / PAGE_SIZE);
-  const paginatedStocks = filteredStocks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  // 计算胜率
-  const calculateWinRate = (period: Period) => {
-    const validStocks = filteredStocks.filter(s => {
-      const perf = period === 5 ? s.performance5d : period === 10 ? s.performance10d : s.performance20d;
-      return perf !== null;
-    });
-    
-    if (validStocks.length === 0) return 0;
-    
-    const winCount = validStocks.filter(s => {
-      const perf = period === 5 ? s.performance5d : period === 10 ? s.performance10d : s.performance20d;
-      return perf! > 0;
-    }).length;
-    
-    return (winCount / validStocks.length) * 100;
-  };
-
-  // 按行业统计胜率
-  const calculateIndustryWinRate = (period: Period) => {
-    const industryMap = new Map<string, { total: number; win: number }>();
-    
-    filteredStocks.forEach(s => {
-      const perf = period === 5 ? s.performance5d : period === 10 ? s.performance10d : s.performance20d;
-      if (perf === null) return;
-      
-      if (!industryMap.has(s.industry)) {
-        industryMap.set(s.industry, { total: 0, win: 0 });
-      }
-      
-      const stats = industryMap.get(s.industry)!;
-      stats.total++;
-      if (perf > 0) stats.win++;
-    });
-    
-    return Array.from(industryMap.entries()).map(([industry, stats]) => ({
-      industry,
-      winRate: (stats.win / stats.total) * 100,
-      total: stats.total,
-    }));
-  };
-
-  const overallWinRate = calculateWinRate(selectedPeriod);
-  const industryWinRates = calculateIndustryWinRate(selectedPeriod);
-
-  // 获取胜率颜色
-  const getWinRateColor = (rate: number) => {
-    if (rate > 60) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
-    if (rate >= 40) return 'text-amber-600 bg-amber-50 border-amber-200';
-    return 'text-red-600 bg-red-50 border-red-200';
-  };
+  const totalPages = Math.ceil(sortedStocks.length / PAGE_SIZE);
+  const paginatedStocks = sortedStocks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // 格式化表现数据
   const formatPerformance = (perf: number | null) => {
@@ -183,47 +201,6 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
         </p>
       </div>
 
-      {/* 周期切换 */}
-      <div className="flex items-center gap-4">
-        <span className="text-sm font-medium text-foreground">统计周期:</span>
-        <div className="flex gap-2">
-          {[5, 10, 20].map(period => (
-            <Button
-              key={period}
-              variant={selectedPeriod === period ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedPeriod(period as Period)}
-            >
-              {period} 日
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* 胜率统计看板 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* 总体胜率 */}
-        <div className={`rounded-lg border-2 p-4 ${getWinRateColor(overallWinRate)}`}>
-          <div className="text-xs font-medium mb-1">{selectedPeriod}日总体胜率</div>
-          <div className="text-2xl font-bold">{overallWinRate.toFixed(1)}%</div>
-            <div className="text-xs mt-1 opacity-75">
-            样本数: {filteredStocks.filter(s => {
-              const perf = selectedPeriod === 5 ? s.performance5d : selectedPeriod === 10 ? s.performance10d : s.performance20d;
-              return perf !== null;
-            }).length} 只
-          </div>
-        </div>
-
-        {/* 行业胜率 */}
-        {industryWinRates.slice(0, 2).map(({ industry, winRate, total }) => (
-          <div key={industry} className={`rounded-lg border-2 p-4 ${getWinRateColor(winRate)}`}>
-            <div className="text-xs font-medium mb-1">{industry}</div>
-            <div className="text-2xl font-bold">{winRate.toFixed(1)}%</div>
-            <div className="text-xs mt-1 opacity-75">样本数: {total} 只</div>
-          </div>
-        ))}
-      </div>
-
       {/* 观察池股票列表 + K线图 */}
       <div className="grid grid-cols-1 lg:grid-cols-[55%_45%] gap-6">
         {/* 左侧：股票列表 */}
@@ -239,13 +216,41 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
             <table className="w-full text-sm">
               <thead className="bg-muted/50 sticky top-0">
                 <tr className="text-left text-xs text-muted-foreground">
-                  <th className="p-2 font-medium">代码</th>
-                  <th className="p-2 font-medium">名称</th>
-                  <th className="p-2 font-medium">行业</th>
-                  <th className="p-2 font-medium">纳入日期</th>
-                  <th className="p-2 font-medium">5日表现</th>
-                  <th className="p-2 font-medium">10日表现</th>
-                  <th className="p-2 font-medium">20日表现</th>
+                  <th className="p-2 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('code')}>
+                    <div className="flex items-center gap-1">
+                      代码 <SortIcon field="code" />
+                    </div>
+                  </th>
+                  <th className="p-2 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>
+                    <div className="flex items-center gap-1">
+                      名称 <SortIcon field="name" />
+                    </div>
+                  </th>
+                  <th className="p-2 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('industry')}>
+                    <div className="flex items-center gap-1">
+                      行业 <SortIcon field="industry" />
+                    </div>
+                  </th>
+                  <th className="p-2 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('addedDate')}>
+                    <div className="flex items-center gap-1">
+                      纳入日期 <SortIcon field="addedDate" />
+                    </div>
+                  </th>
+                  <th className="p-2 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('performance5d')}>
+                    <div className="flex items-center gap-1">
+                      5日表现 <SortIcon field="performance5d" />
+                    </div>
+                  </th>
+                  <th className="p-2 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('performance10d')}>
+                    <div className="flex items-center gap-1">
+                      10日表现 <SortIcon field="performance10d" />
+                    </div>
+                  </th>
+                  <th className="p-2 font-medium cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => handleSort('performance20d')}>
+                    <div className="flex items-center gap-1">
+                      20日表现 <SortIcon field="performance20d" />
+                    </div>
+                  </th>
                   <th className="p-2 font-medium">展示要素</th>
                   <th className="p-2 font-medium">操作</th>
                 </tr>

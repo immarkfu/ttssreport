@@ -8,7 +8,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { StockSignal, generateKLineData } from '@/data/mockData';
 import SignalTable from './SignalTable';
 import KLineChart from './charts/KLineChart';
-import ConfigPanel, { B1Config, S1Config } from './ConfigPanel';
+import ConfigPanel, { S1Config } from './ConfigPanel';
+
+export interface B1Config {
+  b1JThreshold: number;
+  b1VolumeRatio: number;
+  b1RedGreenCondition: boolean;
+}
 import { toast } from 'sonner';
 import { b1SignalService, B1SignalResult, TagItem } from '@/services/b1SignalService';
 import { configService, UserConfig } from '@/services/configService';
@@ -21,8 +27,7 @@ interface SignalDetailViewProps {
 }
 
 const defaultB1Config: B1Config = {
-  b1JThreshold: 13,
-  b1MacdDifThreshold: 0,
+  b1JThreshold: 20,
   b1VolumeRatio: 1.0,
   b1RedGreenCondition: true,
 };
@@ -72,8 +77,7 @@ export default function SignalDetailView({
         const macdTag = res.data.find(t => t.tag_code === 'macd_dif_gt_0_qfq');
         setConfig(prev => ({
           ...prev,
-          b1JThreshold: jTag?.threshold_value ?? 13,
-          b1MacdDifThreshold: macdTag?.threshold_value ?? 0,
+          b1JThreshold: jTag?.threshold_value ?? 20,
         } as B1Config));
       }).catch(() => {});
     }
@@ -125,12 +129,12 @@ export default function SignalDetailView({
   useEffect(() => {
     if (serverConfig) {
       if (type === 'B1') {
-        setConfig({
-          b1JThreshold: serverConfig.b1JValueThreshold ?? 13,
+          setConfig({
+          b1JThreshold: serverConfig.b1JValueThreshold ?? 20,
           b1VolumeRatio: parseFloat(serverConfig.b1VolumeRatio ?? '1.0'),
           b1RedGreenCondition: serverConfig.b1RedGreenCondition ?? true,
         });
-      } else {
+        } else {
         setConfig({
           s1BreakWhiteLine: serverConfig.s1WhiteLineBreak ?? true,
           s1LongYangFly: serverConfig.s1LongYangFly ?? true,
@@ -235,7 +239,6 @@ export default function SignalDetailView({
         const b1Config = config as B1Config;
         await configService.update({
           b1JValueThreshold: b1Config.b1JThreshold,
-          b1MacdCondition: b1Config.b1MacdDifThreshold,
           b1VolumeRatio: b1Config.b1VolumeRatio.toString(),
           b1RedGreenCondition: b1Config.b1RedGreenCondition,
         });
@@ -263,8 +266,7 @@ export default function SignalDetailView({
         tradeDate, 
         selectedTagCodes.length > 0 ? selectedTagCodes : undefined, 
         false,
-        b1Config.b1JThreshold,
-        b1Config.b1MacdDifThreshold
+        b1Config.b1JThreshold
       );
       const mapped = response.data.map(mapB1Result);
       setLocalSignals(mapped);
@@ -286,8 +288,7 @@ export default function SignalDetailView({
         tradeDate, 
         selectedTagCodes.length > 0 ? selectedTagCodes : undefined, 
         true,
-        b1Config.b1JThreshold,
-        b1Config.b1MacdDifThreshold
+        b1Config.b1JThreshold
       );
       const mapped = response.data.map(mapB1Result);
       setLocalSignals(mapped);
@@ -296,7 +297,6 @@ export default function SignalDetailView({
         await b1SignalService.saveTagConfig(selectedTagCodes);
       }
       await b1SignalService.saveThreshold('j_lt_13_qfq', b1Config.b1JThreshold);
-      await b1SignalService.saveThreshold('macd_dif_gt_0_qfq', b1Config.b1MacdDifThreshold);
       toast.success('保存成功', { description: `共${response.saved}条记录已保存` });
     } catch (error: any) {
       toast.error('保存失败', { description: error.message });
@@ -306,8 +306,8 @@ export default function SignalDetailView({
   };
 
   return (
-    <div className="relative">
-      <div className="flex gap-4 h-[calc(100vh-180px)]">
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-4 h-[calc(100vh-280px)]">
         {/* 左侧：信号列表表格 (55%) - 确保表格完整显示 */}
         <div className="w-[55%]">
           <SignalTable
@@ -349,22 +349,24 @@ export default function SignalDetailView({
         </div>
       </div>
 
-      {/* 配置面板 - 右下角浮动 */}
-      <ConfigPanel
-        type={type}
-        config={config}
-        onChange={handleConfigChange}
-        onSave={handleConfigSave}
-        tags={tags}
-        selectedTagCodes={selectedTagCodes}
-        onTagCodesChange={setSelectedTagCodes}
-        tradeDate={tradeDate}
-        onTradeDateChange={setTradeDate}
-        onFilter={handleFilter}
-        onSaveConfig={handleSaveConfig}
-        filterLoading={filterLoading}
-        onTagUpdate={handleTagUpdate}
-      />
+      {/* 配置面板 - 集成到布局中 */}
+      <div className="w-full">
+        <ConfigPanel
+          type={type}
+          config={config}
+          onChange={handleConfigChange}
+          onSave={handleConfigSave}
+          tags={tags}
+          selectedTagCodes={selectedTagCodes}
+          onTagCodesChange={setSelectedTagCodes}
+          tradeDate={tradeDate}
+          onTradeDateChange={setTradeDate}
+          onFilter={handleFilter}
+          onSaveConfig={handleSaveConfig}
+          filterLoading={filterLoading}
+          onTagUpdate={handleTagUpdate}
+        />
+      </div>
     </div>
   );
 }

@@ -10,18 +10,33 @@ interface HeaderProps {
 }
 
 export default function Header({ currentDate }: HeaderProps) {
-  const today = currentDate || new Date().toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).replace(/\//g, '/');
+  // 获取最近一个交易日（排除周末）
+  const getLatestTradingDay = () => {
+    const date = new Date();
+    let day = date.getDay();
+    
+    // 如果是周末，回退到上一个工作日
+    if (day === 0) { // 周日
+      date.setDate(date.getDate() - 2);
+    } else if (day === 6) { // 周六
+      date.setDate(date.getDate() - 1);
+    }
+    
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).replace(/\//g, '/');
+  };
+
+  const latestTradingDay = currentDate || getLatestTradingDay();
 
   return (
     <header className="h-14 bg-card border-b border-border flex items-center justify-between px-6">
       {/* 左侧：日期信息 */}
       <div className="flex items-center gap-2 text-sm">
         <Calendar className="w-4 h-4 text-muted-foreground" />
-        <span className="font-mono">{today}</span>
+        <span className="font-mono">{latestTradingDay} (最近交易日)</span>
       </div>
 
       {/* 右侧：合规提醒 */}

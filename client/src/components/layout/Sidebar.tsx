@@ -42,9 +42,9 @@ interface SidebarProps {
 
 const baseNavItems = [
   { id: 'dashboard', label: '总览仪表盘', icon: LayoutDashboard },
-  { id: 'b1-signals', label: '每日B1观察提醒', icon: TrendingUp },
+  { id: 'b1-signals', label: 'B1筛选看板', icon: TrendingUp },
   // { id: 's1-signals', label: '每日S1卖出提醒', icon: TrendingDown },
-  { id: 'observation', label: '观察分析看板', icon: BarChart3 },
+  { id: 'observation', label: '个人观察统计池', icon: BarChart3 },
   // { id: 'config-tags', label: '配置标签管理', icon: Tags },
 ];
 
@@ -64,13 +64,15 @@ export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCol
       {/* Logo区域 */}
       <div className={cn("border-b border-sidebar-border", collapsed ? "p-3" : "p-5")}>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
-            <BarChart3 className="w-5 h-5 text-white" />
-          </div>
+          <img 
+            src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cartoon%20avatar%20of%20asian%20man%20with%20short%20hair%20smiling%20in%20high%20tech%20control%20room%20with%20blue%20holographic%20screens%20and%20data%20visualization&image_size=square" 
+            alt="Logo" 
+            className="w-8 h-8 rounded-lg object-cover flex-shrink-0" 
+          />
           {!collapsed && (
             <div className="overflow-hidden">
-              <h1 className="font-semibold text-sidebar-foreground whitespace-nowrap">知行量化</h1>
-              <p className="text-xs text-muted-foreground whitespace-nowrap">D-Quant Pro</p>
+              <h1 className="font-semibold text-sidebar-foreground whitespace-nowrap">踏踏实实看板</h1>
+              <p className="text-xs text-muted-foreground whitespace-nowrap">ZGNB</p>
             </div>
           )}
         </div>
