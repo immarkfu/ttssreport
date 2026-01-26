@@ -28,6 +28,7 @@ export interface B1SignalResult {
   display_factor: string;
   matched_tag_ids: number[];
   matched_tag_names: string[];
+  matched_tag_codes: string[];
   plus_tags_count: number;
   minus_tags_count: number;
   tag_score: number;
@@ -38,6 +39,8 @@ export interface B1SignalResponse {
   success: boolean;
   total: number;
   data: B1SignalResult[];
+  page: number;
+  page_size: number;
 }
 
 export interface B1Tag {
@@ -81,17 +84,71 @@ export interface B1FilterAndTagResponse {
   data: B1SignalResult[];
 }
 
+export interface StockKLine {
+  time: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  pct_chg: number | null;
+  volume: number | null;
+}
+
+export interface StockIndicator {
+  time: string;
+  ma5: number | null;
+  ma10: number | null;
+  volume: number | null;
+  k: number | null;
+  d: number | null;
+  j: number | null;
+}
+
+export interface StockDetailResponse {
+  success: boolean;
+  data: {
+    ts_code: string;
+    kline: StockKLine[];
+    indicators: StockIndicator[];
+  } | null;
+  message?: string;
+}
+
+export interface LatestTradeDateResponse {
+  success: boolean;
+  latest_trade_date: string | null;
+  message?: string;
+}
+
+function getUserIdFromStorage(): number {
+  const savedUser = localStorage.getItem('user');
+  if (savedUser) {
+    const user = JSON.parse(savedUser);
+    if (user && user.id) {
+      return user.id;
+    }
+  }
+  throw new Error('用户未登录');
+}
+
 export const b1SignalService = {
   async getResults(
     tradeDate?: string,
     signalStrength?: string,
-    limit: number = 100
+    page: number = 1,
+    pageSize: number = 20,
+    jValue?: number,
+    matchedTagCodes?: string[]
   ): Promise<B1SignalResponse> {
     const params = new URLSearchParams();
-    const effectiveDate = tradeDate || new Date().toISOString().split('T')[0];
-    params.append('trade_date', effectiveDate);
+    if (tradeDate) params.append('trade_date', tradeDate);
     if (signalStrength) params.append('signal_strength', signalStrength);
-    params.append('limit', limit.toString());
+    params.append('page', page.toString());
+    params.append('page_size', pageSize.toString());
+    if (jValue !== undefined) params.append('j_value', jValue.toString());
+    if (matchedTagCodes && matchedTagCodes.length > 0) {
+      params.append('matched_tag_codes', matchedTagCodes.join(','));
+    }
 
     const response = await fetch(`${API_BASE_URL}/b1-signal/results?${params}`);
     if (!response.ok) {
@@ -101,16 +158,18 @@ export const b1SignalService = {
   },
 
   async getConfigTags(): Promise<TagsResponse> {
-    const response = await fetch(`${API_BASE_URL}/config-tags/list`);
+    const userId = getUserIdFromStorage();
+    const response = await fetch(`${API_BASE_URL}/config-tags/list?user_id=${userId}`);
     if (!response.ok) throw new Error('Failed to fetch tags');
     return response.json();
   },
 
   async saveConfigTag(id: number, thresholdValue: number | null, isUpdate: boolean): Promise<{ success: boolean }> {
+    const userId = getUserIdFromStorage();
     const response = await fetch(`${API_BASE_URL}/config-tags/tags/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, threshold_value: thresholdValue, is_update: isUpdate }),
+      body: JSON.stringify({ id, user_id: userId, threshold_value: thresholdValue, is_update: isUpdate }),
     });
     if (!response.ok) throw new Error('Failed to save tag config');
     return response.json();
@@ -123,6 +182,7 @@ export const b1SignalService = {
     jThreshold?: number,
     macdDifThreshold?: number
   ): Promise<B1FilterAndTagResponse> {
+    const userId = getUserIdFromStorage();
     const response = await fetch(`${API_BASE_URL}/b1-signal/filter-and-tag`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -132,6 +192,7 @@ export const b1SignalService = {
         save_to_db: saveToDb,
         j_threshold: jThreshold,
         macd_dif_threshold: macdDifThreshold,
+        user_id: userId,
       }),
     });
     if (!response.ok) {
@@ -140,11 +201,13 @@ export const b1SignalService = {
     return response.json();
   },
 
-  async saveTagConfig(tagCodes: string[]): Promise<{ success: boolean; enabled_count: number }> {
+  async saveTagConfig(tags: { id: number; is_enabled: number; threshold_value: number | null }[]): Promise<{ success: boolean }> {
+    const userId = getUserIdFromStorage();
+    const payload = { tags, user_id: userId };
     const response = await fetch(`${API_BASE_URL}/b1-signal/save-tag-config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tag_codes: tagCodes }),
+      body: JSON.stringify(payload),
     });
     if (!response.ok) {
       throw new Error('Failed to save tag config');
@@ -153,13 +216,30 @@ export const b1SignalService = {
   },
 
   async saveThreshold(tagCode: string, thresholdValue: number): Promise<{ success: boolean }> {
+    const userId = getUserIdFromStorage();
     const response = await fetch(`${API_BASE_URL}/b1-signal/save-threshold`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tag_code: tagCode, threshold_value: thresholdValue }),
+      body: JSON.stringify({ tag_code: tagCode, threshold_value: thresholdValue, user_id: userId }),
     });
     if (!response.ok) {
       throw new Error('Failed to save threshold');
+    }
+    return response.json();
+  },
+
+  async getStockDetail(code: string): Promise<StockDetailResponse> {
+    const response = await fetch(`${API_BASE_URL}/b1-signal/stock-detail?code=${encodeURIComponent(code)}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch stock detail');
+    }
+    return response.json();
+  },
+
+  async getLatestTradeDate(): Promise<LatestTradeDateResponse> {
+    const response = await fetch(`${API_BASE_URL}/auth/latest-trade`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch latest trade date');
     }
     return response.json();
   },

@@ -19,6 +19,7 @@ export interface UserConfig {
 }
 
 export interface ConfigUpdateInput {
+  userId: number;
   b1JValueThreshold?: number;
   b1MacdCondition?: string;
   b1VolumeRatio?: string;
@@ -31,23 +32,42 @@ export interface ConfigUpdateInput {
   excludedIndustries?: string;
 }
 
+async function getCurrentUserId(): Promise<number> {
+  const savedUser = localStorage.getItem('user');
+  if (savedUser) {
+    const user = JSON.parse(savedUser);
+    if (user && user.id) {
+      return user.id;
+    }
+  }
+  throw new Error('用户未登录');
+}
+
 export const configService = {
   async get(): Promise<UserConfig> {
-    const response = await fetch(`${API_BASE_URL}/config-tags/list`, {
+    const userId = await getCurrentUserId();
+    const response = await fetch(`${API_BASE_URL}/config-tags/list?user_id=${userId}`, {
       credentials: 'include',
     });
-    if (!response.ok) throw new Error('Failed to fetch config');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to fetch config');
+    }
     return response.json();
   },
 
-  async update(input: ConfigUpdateInput): Promise<{ success: boolean; updated: number }> {
+  async update(input: Omit<ConfigUpdateInput, 'userId'>): Promise<{ success: boolean; updated: number }> {
+    const userId = await getCurrentUserId();
     const response = await fetch(`${API_BASE_URL}/config-tags/update`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify(input),
+      body: JSON.stringify({ ...input, userId }),
     });
-    if (!response.ok) throw new Error('Failed to update config');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || 'Failed to update config');
+    }
     return response.json();
   },
 

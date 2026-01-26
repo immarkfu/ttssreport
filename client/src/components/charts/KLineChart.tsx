@@ -16,6 +16,15 @@ import {
   CandlestickSeries,
 } from 'lightweight-charts';
 import { KLineData, calculateKDJ } from '@/data/mockData';
+import { StockIndicator } from '@/services/b1SignalService';
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return dateStr;
+  if (/^\d{8}$/.test(dateStr)) {
+    return `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+  }
+  return dateStr;
+}
 
 interface KLineChartProps {
   data: KLineData[];
@@ -23,9 +32,10 @@ interface KLineChartProps {
   stockCode?: string;
   entryDate?: string;
   kdjValues?: { j: number; k: number; d: number };
+  indicators?: StockIndicator[];
 }
 
-export default function KLineChart({ data, stockName, stockCode, entryDate, kdjValues: propsKdjValues }: KLineChartProps) {
+export default function KLineChart({ data, stockName, stockCode, entryDate, kdjValues: propsKdjValues, indicators }: KLineChartProps) {
   const mainChartRef = useRef<HTMLDivElement>(null);
   const volumeChartRef = useRef<HTMLDivElement>(null);
   const kdjChartRef = useRef<HTMLDivElement>(null);
@@ -110,7 +120,7 @@ export default function KLineChart({ data, stockName, stockCode, entryDate, kdjV
 
     // 转换数据格式
     const candleData: CandlestickData[] = data.map(d => ({
-      time: d.time,
+      time: formatDate(d.time),
       open: d.open,
       high: d.high,
       low: d.low,
@@ -134,9 +144,9 @@ export default function KLineChart({ data, stockName, stockCode, entryDate, kdjV
     // 计算均线
     const calculateMA = (period: number) => {
       return data.map((d, i) => {
-        if (i < period - 1) return { time: d.time, value: NaN };
+        if (i < period - 1) return { time: formatDate(d.time), value: NaN };
         const sum = data.slice(i - period + 1, i + 1).reduce((acc, item) => acc + item.close, 0);
-        return { time: d.time, value: sum / period };
+        return { time: formatDate(d.time), value: sum / period };
       }).filter(d => !isNaN(d.value));
     };
 
@@ -179,7 +189,7 @@ export default function KLineChart({ data, stockName, stockCode, entryDate, kdjV
     });
 
     volumeSeries.setData(data.map((d, i) => ({
-      time: d.time,
+      time: formatDate(d.time),
       value: d.volume,
       color: i > 0 && d.close >= data[i - 1].close ? '#DC2626' : '#22C55E',
     })));
@@ -195,7 +205,18 @@ export default function KLineChart({ data, stockName, stockCode, entryDate, kdjV
       },
     });
 
-    const kdjData = calculateKDJ(data);
+    let kdjData: { time: string; k?: number; d?: number; j?: number }[];
+
+    if (indicators && indicators.length > 0) {
+      kdjData = indicators.map(ind => ({
+        time: formatDate(ind.time),
+        k: ind.k ?? undefined,
+        d: ind.d ?? undefined,
+        j: ind.j ?? undefined,
+      }));
+    } else {
+      kdjData = calculateKDJ(data);
+    }
 
     // K线 - 蓝色
     const kSeries = kdjChart.current.addSeries(LineSeries, {
@@ -220,7 +241,7 @@ export default function KLineChart({ data, stockName, stockCode, entryDate, kdjV
     dSeries.setData(kdjData.map(d => ({ time: d.time, value: d.d! })));
     jSeries.setData(kdjData.map(d => ({ time: d.time, value: d.j! })));
 
-    // 设置最新KDJ值（优先使用传入的真实值）
+    // 设置最新KDJ值（优先使用传入的真实值 > 指标数据 > 计算值）
     if (propsKdjValues) {
       setKdjValues({
         k: Math.round(propsKdjValues.k * 100) / 100,
@@ -230,9 +251,9 @@ export default function KLineChart({ data, stockName, stockCode, entryDate, kdjV
     } else if (kdjData.length > 0) {
       const latest = kdjData[kdjData.length - 1];
       setKdjValues({
-        k: Math.round(latest.k! * 100) / 100,
-        d: Math.round(latest.d! * 100) / 100,
-        j: Math.round(latest.j! * 100) / 100,
+        k: Math.round((latest.k ?? 0) * 100) / 100,
+        d: Math.round((latest.d ?? 0) * 100) / 100,
+        j: Math.round((latest.j ?? 0) * 100) / 100,
       });
     }
 

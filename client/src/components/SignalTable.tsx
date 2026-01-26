@@ -4,7 +4,7 @@
  * 功能：分页、排序、行业列、回测池复选框
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { StockSignal } from '@/data/mockData';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +15,12 @@ import { ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight } fro
 
 interface SignalTableProps {
   signals: StockSignal[];
+  total: number;
   selectedId: string | null;
   onSelect: (signal: StockSignal) => void;
+  page: number;
+  pageSize: number;
+  onPageChange?: (page: number, pageSize: number) => void;
   type: 'B1' | 'S1';
   backtestPool?: Set<string>;
   onBacktestPoolChange?: (code: string, checked: boolean) => void;
@@ -25,19 +29,34 @@ interface SignalTableProps {
 type SortField = 'code' | 'name' | 'industry' | 'price' | 'changePercent' | 'signalStrength' | 'displayFactor';
 type SortDirection = 'asc' | 'desc' | null;
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20];
 
-export default function SignalTable({ 
-  signals, 
-  selectedId, 
-  onSelect, 
+export default function SignalTable({
+  signals,
+  total,
+  selectedId,
+  onSelect,
+  page,
+  pageSize,
+  onPageChange,
   type,
   backtestPool = new Set(),
   onBacktestPoolChange
 }: SignalTableProps) {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [displayPage, setDisplayPage] = useState(page);
+  const [displayPageSize, setDisplayPageSize] = useState(pageSize);
+
+  useEffect(() => {
+    setDisplayPage(page);
+  }, [page]);
+
+  useEffect(() => {
+    if (pageSize !== displayPageSize) {
+      setDisplayPageSize(pageSize);
+    }
+  }, [pageSize]);
 
   // 排序逻辑
   const sortedSignals = useMemo(() => {
@@ -45,7 +64,7 @@ export default function SignalTable({
 
     return [...signals].sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortField) {
         case 'code':
           comparison = a.code.localeCompare(b.code);
@@ -76,11 +95,10 @@ export default function SignalTable({
   }, [signals, sortField, sortDirection]);
 
   // 分页逻辑
-  const totalPages = Math.ceil(sortedSignals.length / PAGE_SIZE);
+  const totalPages = Math.ceil(total / pageSize);
   const paginatedSignals = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return sortedSignals.slice(start, start + PAGE_SIZE);
-  }, [sortedSignals, currentPage]);
+    return signals;
+  }, [signals]);
 
   // 处理排序点击
   const handleSort = (field: SortField) => {
@@ -95,7 +113,8 @@ export default function SignalTable({
       setSortField(field);
       setSortDirection('asc');
     }
-    setCurrentPage(1); // 排序后回到第一页
+    setDisplayPage(1);
+    onPageChange?.(1, pageSize);
   };
 
   // 排序图标
@@ -127,17 +146,37 @@ export default function SignalTable({
     );
   };
 
-  const getDisplayFactorBadge = (factor: string) => {
+  const getDisplayFactorBadge = (factor: string, tagCode?: string) => {
+    // 默认为蓝色
     let style = 'bg-blue-50 text-blue-700 border-blue-200';
-    if (factor.includes('J<') || factor.includes('J>')) {
-      style = 'bg-purple-50 text-purple-700 border-purple-200';
-    } else if (factor.includes('跌破') || factor.includes('放飞')) {
-      style = 'bg-red-50 text-red-600 border-red-200';
-    } else if (factor.includes('红肥绿瘦')) {
-      style = 'bg-orange-50 text-orange-700 border-orange-200';
-    } else if (factor.includes('量比')) {
-      style = 'bg-cyan-50 text-cyan-700 border-cyan-200';
+    
+    // 根据 tagCode 设置颜色
+    if (tagCode) {
+      // 加分项显示红色
+      if (tagCode === 'j_lt_13_qfq' || 
+          tagCode === 'macd_dif_gt_0_qfq' || 
+          tagCode.startsWith('up') ||
+          tagCode.endsWith('up')) {
+        style = 'bg-red-50 text-red-600 border-red-200';
+      }
+      // 减分项显示绿色
+      else if (tagCode.endsWith('down')) {
+        style = 'bg-green-50 text-green-600 border-green-200';
+      }
     }
+    // 向后兼容：如果没有 tagCode，根据因子内容设置颜色
+    else {
+      if (factor.includes('J<') || factor.includes('J>')) {
+        style = 'bg-purple-50 text-purple-700 border-purple-200';
+      } else if (factor.includes('跌破') || factor.includes('放飞')) {
+        style = 'bg-red-50 text-red-600 border-red-200';
+      } else if (factor.includes('红肥绿瘦')) {
+        style = 'bg-orange-50 text-orange-700 border-orange-200';
+      } else if (factor.includes('量比')) {
+        style = 'bg-cyan-50 text-cyan-700 border-cyan-200';
+      }
+    }
+    
     return (
       <Badge variant="outline" className={cn('text-xs font-normal whitespace-nowrap', style)}>
         {factor}
@@ -161,8 +200,8 @@ export default function SignalTable({
               点击查看详细K线走势，勾选后点击按钮加入观察
             </p>
           </div>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             variant="outline"
             className="h-8 text-xs"
             onClick={() => {
@@ -171,7 +210,6 @@ export default function SignalTable({
                 alert('请先勾选股票');
                 return;
               }
-              // TODO: 调用API将勾选的股票加入观察池
               alert(`已将 ${checkedCodes.length} 只股票加入观察池`);
             }}
           >
@@ -257,9 +295,13 @@ export default function SignalTable({
                 <td className="w-12 px-1 py-2.5 text-center">{getStrengthBadge(signal.signalStrength)}</td>
                 <td className="w-[140px] px-1 py-2.5">
                   <div className="grid grid-cols-3 gap-0.5">
-                    {signal.displayFactor.split(',').slice(0, 15).map((factor, idx) => (
-                      <div key={idx}>{getDisplayFactorBadge(factor.trim())}</div>
-                    ))}
+                    {signal.displayFactor.split(',').slice(0, 15).map((factor, idx) => {
+                      const trimmedFactor = factor.trim();
+                      const tagCode = signal.tagNameToCodeMap?.[trimmedFactor];
+                      return (
+                        <div key={idx}>{getDisplayFactorBadge(trimmedFactor, tagCode)}</div>
+                      );
+                    })}
                   </div>
                 </td>
               </tr>
@@ -271,34 +313,59 @@ export default function SignalTable({
       {/* 底部分页 */}
       <div className="px-4 py-1.5 border-t border-border/50 bg-muted/30 flex items-center justify-between">
         <div className="text-xs text-muted-foreground">
-          共 {signals.length} 只股票 · 已选 {backtestPool.size} 只
+          共 {total} 只股票 · 已选 {backtestPool.size} 只 {displayPage} / {totalPages}
         </div>
-        
-        {totalPages > 1 && (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground px-2">
-              {currentPage} / {totalPages}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
+
+        <div className="flex items-center gap-2">
+          <select
+            value={displayPageSize}
+            onChange={(e) => {
+              const newSize = Number(e.target.value);
+              setDisplayPageSize(newSize);
+              setDisplayPage(1);
+              onPageChange?.(1, newSize);
+            }}
+            className="h-7 px-2 text-xs border border-border rounded bg-background cursor-pointer"
+          >
+            {PAGE_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>{size}条/页</option>
+            ))}
+          </select>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => {
+                  const newPage = Math.max(1, displayPage - 1);
+                  setDisplayPage(newPage);
+                  onPageChange?.(newPage, pageSize);
+                }}
+                disabled={displayPage === 1}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-xs text-muted-foreground px-2">
+                {displayPage} / {totalPages}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => {
+                  const newPage = Math.min(totalPages, displayPage + 1);
+                  setDisplayPage(newPage);
+                  onPageChange?.(newPage, pageSize);
+                }}
+                disabled={displayPage === totalPages}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

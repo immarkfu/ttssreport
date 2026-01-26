@@ -15,11 +15,13 @@ import { b1SignalList, s1SignalList } from '@/data/mockData';
 import { Button } from '@/components/ui/button';
 import { LogIn } from 'lucide-react';
 import { configService } from '@/services/configService';
+import { b1SignalService } from '@/services/b1SignalService';
 
 export default function Home() {
   const { user, token, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [latestTradeDate, setLatestTradeDate] = useState<string>('');
   
   const [backtestPool, setBacktestPool] = useState<Set<string>>(new Set());
 
@@ -29,6 +31,20 @@ export default function Home() {
       setBacktestPool(new Set(codes));
     }).catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    const fetchLatestTradeDate = async () => {
+      try {
+        const response = await b1SignalService.getLatestTradeDate();
+        if (response.success && response.latest_trade_date) {
+          setLatestTradeDate(response.latest_trade_date);
+        }
+      } catch (error) {
+        console.error('获取交易日失败:', error);
+      }
+    };
+    fetchLatestTradeDate();
+  }, []);
 
   const handleBacktestPoolChange = (code: string, checked: boolean) => {
     setBacktestPool(prev => {
@@ -93,7 +109,7 @@ export default function Home() {
       {/* 主内容区域 */}
       <div className="flex-1 flex flex-col">
         {/* 顶部导航 */}
-        <Header currentDate="2026/01/16" />
+        <Header currentDate={latestTradeDate || undefined} />
 
         {/* 内容区域 */}
         <main className="flex-1 p-6 overflow-auto">

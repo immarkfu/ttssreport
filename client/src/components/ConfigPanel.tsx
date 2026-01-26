@@ -1,18 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Save, Settings, X, Filter, Loader2 } from 'lucide-react';
+import { Save, Settings, X, Loader2 } from 'lucide-react';
 import { TagItem } from '@/services/b1SignalService';
 
 export interface B1Config {
   b1JThreshold: number;
-  b1VolumeRatio: number;
-  b1RedGreenCondition: boolean;
 }
 
 export interface S1Config {
@@ -30,31 +26,50 @@ interface ConfigPanelProps {
   tags?: TagItem[];
   selectedTagCodes?: string[];
   onTagCodesChange?: (codes: string[]) => void;
-  tradeDate?: string;
-  onTradeDateChange?: (date: string) => void;
-  onFilter?: () => void;
+  onTagsChange?: (codes: string[]) => void;
   onSaveConfig?: () => void;
+  onSaveTagsConfig?: (tags: { id: number; is_enabled: number; threshold_value: number | null }[]) => void;
   filterLoading?: boolean;
-  onTagUpdate?: (id: number, thresholdValue: number | null, isUpdate: boolean) => void;
 }
 
-export default function ConfigPanel({ 
-  type, 
-  config, 
-  onChange, 
+export default function ConfigPanel({
+  type,
+  config,
+  onChange,
   onSave,
   tags = [],
   selectedTagCodes = [],
   onTagCodesChange,
-  tradeDate = '',
-  onTradeDateChange,
-  onFilter,
+  onTagsChange,
   onSaveConfig,
+  onSaveTagsConfig,
   filterLoading = false,
-  onTagUpdate = () => {},
 }: ConfigPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
+  const [enabledTagCodes, setEnabledTagCodes] = useState<string[]>(selectedTagCodes);
+  const [lastDisabledTagCodes, setLastDisabledTagCodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    setEnabledTagCodes(selectedTagCodes);
+  }, [selectedTagCodes]);
+
+  useEffect(() => {
+    // 初始渲染时计算禁用标签并传递给父组件
+    if (tags.length > 0 && onTagsChange) {
+      const allTagCodes = tags.map(t => t.tag_code);
+      const disabledTagCodes = allTagCodes.filter(code => !enabledTagCodes.includes(code));
+      
+      // 只有当禁用标签代码真正变化时才调用 onTagsChange，避免递归更新
+      const isChanged = disabledTagCodes.length !== lastDisabledTagCodes.length || 
+        !disabledTagCodes.every(code => lastDisabledTagCodes.includes(code));
+      
+      if (isChanged) {
+        onTagsChange(disabledTagCodes);
+        setLastDisabledTagCodes(disabledTagCodes);
+      }
+    }
+  }, [tags, enabledTagCodes, lastDisabledTagCodes]);
 
   const handleChange = (key: string, value: any) => {
     onChange({ ...config, [key]: value });
@@ -62,7 +77,15 @@ export default function ConfigPanel({
   };
 
   const handleTagCheckChange = (tag: TagItem) => {
-    onTagUpdate?.(tag.id, null, false);
+    const isCurrentlyEnabled = enabledTagCodes.includes(tag.tag_code);
+    const newEnabledTagCodes = isCurrentlyEnabled
+      ? enabledTagCodes.filter(code => code !== tag.tag_code)
+      : [...enabledTagCodes, tag.tag_code];
+
+    setEnabledTagCodes(newEnabledTagCodes);
+    onTagCodesChange?.(newEnabledTagCodes);
+
+    setHasChanges(true);
   };
 
   const getDisplayName = (tagName: string) => {
@@ -70,18 +93,6 @@ export default function ConfigPanel({
       return 'J大负值';
     }
     return tagName;
-  };
-
-  const handleThresholdChange = (tagId: number, value: number) => {
-    onTagUpdate?.(tagId, value, true);
-  };
-
-  const handleSave = () => {
-    onSave();
-    setHasChanges(false);
-    toast.success('配置已保存', {
-      description: '参数设置已更新',
-    });
   };
 
   return (
@@ -129,20 +140,18 @@ export default function ConfigPanel({
                         <div className="grid grid-cols-6 gap-2">
                           {tags.map((tag) => {
                             const isPlus = tag.category === 'plus';
-                            const isEnabled = tag.is_enabled === 1;
-                            
+                            const isEnabled = enabledTagCodes.includes(tag.tag_code);
+
                             return (
                               <button
                                 key={tag.id}
                                 onClick={() => handleTagCheckChange(tag)}
                                 className={`text-sm font-medium px-2 py-1 rounded transition-colors ${
-                                  isEnabled 
-                                    ? isPlus 
-                                      ? 'bg-[#FFF3E0] text-red-700 border border-red-200' 
+                                  isEnabled
+                                    ? isPlus
+                                      ? 'bg-[#FFF3E0] text-red-700 border border-red-200'
                                       : 'bg-[#E8F5E9] text-green-700 border border-green-200'
-                                    : isPlus
-                                      ? 'bg-gray-100 text-red-600 border border-gray-200'
-                                      : 'bg-gray-100 text-green-600 border border-gray-200'
+                                    : 'bg-gray-100 text-gray-500 border border-gray-200'
                                 }`}
                               >
                                 {getDisplayName(tag.tag_name)}
@@ -168,26 +177,8 @@ export default function ConfigPanel({
                           id="panel-b1JThreshold"
                           value={[(config as B1Config).b1JThreshold]}
                           onValueChange={([v]) => handleChange('b1JThreshold', v)}
-                          max={20}
+                          max={13}
                           min={0}
-                          step={1}
-                          className="w-full h-1"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="panel-b1VolumeRatio" className="text-xs font-medium">倍量红柱-量比阈值</Label>
-                          <span className="text-xs font-mono text-muted-foreground">
-                            {(config as B1Config).b1VolumeRatio}x
-                          </span>
-                        </div>
-                        <Slider
-                          id="panel-b1VolumeRatio"
-                          value={[(config as B1Config).b1VolumeRatio * 10]}
-                          onValueChange={([v]) => handleChange('b1VolumeRatio', v / 10)}
-                          max={30}
-                          min={10}
                           step={1}
                           className="w-full h-1"
                         />
@@ -196,7 +187,24 @@ export default function ConfigPanel({
                     <div className="flex gap-2 mt-2">
                       <Button
                         className="flex-1 h-7 text-xs"
-                        onClick={onSaveConfig}
+                        onClick={() => {
+                          const changedTags = tags.filter(tag => {
+                            const wasEnabled = tag.is_enabled === 1;
+                            const isNowEnabled = enabledTagCodes.includes(tag.tag_code);
+                            return wasEnabled !== isNowEnabled;
+                          });
+
+                          if (changedTags.length === 0) {
+                            return;
+                          }
+
+                          const tagConfigs = changedTags.map(tag => ({
+                            id: tag.id,
+                            is_enabled: enabledTagCodes.includes(tag.tag_code) ? 1 : 0,
+                            threshold_value: tag.threshold_value,
+                          }));
+                          onSaveTagsConfig?.(tagConfigs);
+                        }}
                         disabled={filterLoading}
                       >
                         {filterLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}

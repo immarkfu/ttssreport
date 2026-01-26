@@ -17,6 +17,9 @@ export interface StockSignal {
   triggerTime: string;
   triggerCondition: string;
   displayFactor: string;
+  matched_tag_codes?: string[];
+  matched_tag_names?: string[];
+  tagNameToCodeMap?: Record<string, string>;
   j_value?: number;
   k_value?: number;
   d_value?: number;

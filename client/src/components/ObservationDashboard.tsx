@@ -45,7 +45,7 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
     const fetchB1Signals = async () => {
       try {
         setLoading(true);
-        const response = await b1SignalService.getResults();
+        const response = await b1SignalService.getResults(undefined, undefined, 1, 20);
         
         const mappedStocks: ObservationStock[] = response.data.map((item: B1SignalResult) => ({
           code: item.ts_code.replace('.SH', '').replace('.SZ', ''),
