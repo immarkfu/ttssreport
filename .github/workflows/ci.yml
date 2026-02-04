@@ -45,7 +45,7 @@ jobs:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+            ${{ runner.os }}-pnpmink-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -79,11 +79,7 @@ jobs:
           MYSQL_DATABASE: ttssreport_test
           MYSQL_USER: ttssuser
           MYSQL_PASSWORD: ttsspassword
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost -u root -prootpassword"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+        options: --health-cmd="mysqladmin ping -h localhost -u root -prootpassword" --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
       - name: Checkout code
@@ -100,7 +96,7 @@ jobs:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-pik-
 
       - name: Install dependencies
         run: |
