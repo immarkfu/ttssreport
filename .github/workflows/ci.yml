@@ -79,12 +79,9 @@ jobs:
           MYSQL_DATABASE: ttssreport_test
           MYSQL_USER: ttssuser
           MYSQL_PASSWORD: ttsspassword
-        ports:
-          - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h localhost -u root -prootpassword"
           --health-interval=10s
-
           --health-timeout=5s
           --health-retries=5
 
@@ -173,8 +170,6 @@ jobs:
           echo "1. 更新 docker-compose.yml"
           echo "2. 拉取最新镜像"
           echo "3. 重启服务"
-          # 实际部署命令需要根据你的服务器配置
-          # ssh user@server "cd /path/to/ttssreport && docker-compose pull && docker-compose up -d"
 
       - name: Notify deployment
         run: echo "部署完成！访问 https://your-domain.com"
