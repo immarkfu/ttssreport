@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: ttssreport-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: ttssreport
+      MYSQL_USER: ttssuser
+      MYSQL_PASSWORD: ttsspassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./server/sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端 API (FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: ttssreport-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - TUSHARE_TOKEN=${TUSHARE_TOKEN}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=ttssuser
+      - MYSQL_PASSWORD=ttsspassword
+      - MYSQL_DATABASE=ttssreport
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./server:/app
+      - backend_logs:/app/logs
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # 前端 (React + Vite)
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: ttssreport-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:5173"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    command: pnpm run dev -- --host 0.0.0.0
+
+volumes:
+  mysql_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  default:
+    name: ttssreport-network

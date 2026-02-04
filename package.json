@@ -8,7 +8,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "tsc --noEmit",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build": "docker-compose build",
+    "backend:dev": "cd server && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+    "backend:install": "cd server && pip install -r requirements.txt",
+    "frontend:install": "pnpm install"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
