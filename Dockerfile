@@ -12,11 +12,8 @@ COPY package.json pnpm-lock.yaml ./
 # 安装依赖
 RUN pnpm install --frozen-lockfile
 
-# 复制源代码（client/ 目录包含 index.html, src, public）
-COPY client/ ./
-
-# 复制配置文件
-COPY vite.config.ts ./
+# 复制所有源代码（包括 vite.config.ts）
+COPY . .
 
 # 构建
 RUN pnpm run build
@@ -25,7 +22,7 @@ RUN pnpm run build
 FROM nginx:alpine
 
 # 复制构建产物
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/client/dist /usr/share/nginx/html
 
 # 暴露端口
 EXPOSE 80
