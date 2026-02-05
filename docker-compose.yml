@@ -17,16 +17,14 @@ services:
       - mysql_data:/var/lib/mysql
       - ./server/sql:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # 后端 API (FastAPI)
   backend:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
+    image: immarkfu/ttssreport-backend:latest
     container_name: ttssreport-backend
     restart: unless-stopped
     depends_on:
