@@ -28,10 +28,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
+      - name: Install pnpm
+        run: npm install -g pnpm@10
 
       - name: Get pnpm store directory
         id: pnpm-cache
