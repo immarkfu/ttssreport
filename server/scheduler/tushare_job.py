@@ -14,7 +14,8 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 import tushare as ts
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
+from sqlalchemy.sql import text
 from sqlalchemy.pool import QueuePool
 import traceback
 
