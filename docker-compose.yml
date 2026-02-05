@@ -25,8 +25,8 @@ services:
   # 后端 API (FastAPI)
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ./server
+      dockerfile: Dockerfile
     container_name: ttssreport-backend
     restart: unless-stopped
     depends_on:
@@ -42,25 +42,17 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./server:/app
       - backend_logs:/app/logs
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   # 前端 (React + Vite)
   frontend:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
+    image: immarkfu/ttssreport-frontend:latest
     container_name: ttssreport-frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "3000:5173"
-    volumes:
-      - ./client:/app
-      - /app/node_modules
-    command: pnpm run dev -- --host 0.0.0.0
+      - "3000:80"
 
 volumes:
   mysql_data:

@@ -35,7 +35,7 @@ jobs:
 
       - name: Get pnpm store directory
         id: pnpm-cache
-        shell: bash bash
+        shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
 
@@ -109,79 +109,11 @@ jobs:
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
 
-  # 调试任务
-  debug:
-    name: Debug & Test
-    runs-on: ubuntu-latest
-    needs: [frontend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Show environment
-        run: |
-          echo "=== Environment Info ==="
-          echo "Runner OS: ${{ runner.os }}"
-          echo "Node: $(node --version)"
-          echo "Python: $(python --version)"
-          echo "Docker: $(docker --version)"
-          echo "=================="
-
-      - name: Check workspace structure
-        run: |
-          echo "=== Workspace Structure ==="
-          ls -la
-          echo "=================="
-
-      - name: Check frontend files
-        run: |
-          echo "=== Frontend Files ==="
-          ls -la client/ || echo "client directory not found"
-          echo "=================="
-
-      - name: Check backend files
-        run: |
-          echo "=== Backend Files ==="
-          ls -la server/ || echo "server directory not found"
-          echo "=================="
-
-      - name: Check Docker configuration
-        run: |
-          echo "=== Docker Configuration ==="
-          ls -la *.yml docker-compose.yml 2>/dev/null || echo "No docker-compose files"
-          echo "=================="
-
-      - name: Check environment variables
-        run: |
-          echo "=== Environment Variables ==="
-          echo "NODE_VERSION: ${{ env.NODE_VERSION }}"
-          echo "PYTHON_VERSION: ${{ env.PYTHON_VERSION }}"
-          echo "TUSHARE_TOKEN set: ${{ secrets.TUSHARE_TOKEN != '' }}"
-          echo "DOCKER_USERNAME set: ${{ secrets.DOCKER_USERNAME != '' }}"
-          echo "DOCKER_PASSWORD set: ${{ secrets.DOCKER_PASSWORD != '' }}"
-          echo "=================="
-
-      - name: Test Tushare connection
-        if: secrets.TUSHARE_TOKEN != ''
-        run: |
-          echo "=== Testing Tushare Connection ==="
-          python3 -c "
-import os
-token = os.environ.get('TUSHARE_TOKEN', '')
-print(f'Token length: {len(token)}')
-print(f'Token preview: {token[:10]}...' if len(token) > 10 else token)
-"
-        env:
-          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-        continue-on-error: true
-
   # Docker 构建
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [debug]
+    needs: [frontend, backend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
@@ -200,8 +132,8 @@ print(f'Token preview: {token[:10]}...' if len(token) > 10 else token)
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile.backend
+          context: ./server
+          file: ./server/Dockerfile
           push: true
           tags: |
             immarkfu/ttssreport-backend:latest
@@ -210,7 +142,7 @@ print(f'Token preview: {token[:10]}...' if len(token) > 10 else token)
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
         with:
-          context: ./client
+          context: .
           file: ./Dockerfile
           push: true
           tags: |

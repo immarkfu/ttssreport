@@ -1,22 +1,31 @@
 # 前端 Dockerfile
-FROM node:22-alpine
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 # 安装 pnpm
 RUN npm install -g pnpm
 
-# 复制 package.json 和 pnpm-lock.yaml
+# 复制 package.json 和 pnpm-lock.yaml（在根目录）
 COPY package.json pnpm-lock.yaml ./
 
 # 安装依赖
 RUN pnpm install --frozen-lockfile
 
-# 复制源代码
-COPY client/ /app/
+# 复制源代码（client/ 是源代码目录）
+COPY client/ ./
+
+# 构建
+RUN pnpm run build
+
+# 生产镜像
+FROM nginx:alpine
+
+# 复制构建产物
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # 暴露端口
-EXPOSE 5173
+EXPOSE 80
 
-# 开发模式启动命令
-CMD ["pnpm", "run", "dev", "--", "--host", "0.0.0.0"]
+# 启动 nginx
+CMD ["nginx", "-g", "daemon off;"]
