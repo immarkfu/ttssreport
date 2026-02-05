@@ -6,14 +6,11 @@ WORKDIR /app
 # 安装 pnpm
 RUN npm install -g pnpm
 
-# 复制 package.json 和 pnpm-lock.yaml（在根目录）
-COPY package.json pnpm-lock.yaml ./
+# 复制所有文件
+COPY . .
 
 # 安装依赖
 RUN pnpm install --frozen-lockfile
-
-# 复制所有源代码（包括 vite.config.ts）
-COPY . .
 
 # 构建
 RUN pnpm run build
