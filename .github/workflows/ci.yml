@@ -131,7 +131,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./server
-          file: ./server/Dockerfile
+          file: ./Dockerfile.backend
           push: true
           tags: |
             immarkfu/ttssreport-backend:latest
