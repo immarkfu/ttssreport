@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from core.config import settings
 from core.security import create_access_token, verify_token
+from services.smsService import send_sms
 
 class UserService:
     def __init__(self, db):
@@ -13,7 +14,8 @@ class UserService:
     async def send_verification_code(self, phone: str) -> bool:
         code = ''.join(random.choices(string.digits, k=6))
         expires_at = datetime.now() + timedelta(minutes=5)
-        
+
+        # 先保存验证码到数据库
         async with self.db.cursor() as cursor:
             query = """
             INSERT INTO phone_verification_codes (phone, code, expires_at)
@@ -21,21 +23,34 @@ class UserService:
             """
             await cursor.execute(query, (phone, code, expires_at))
             await self.db.commit()
-        
-        print(f"验证码: {code} (手机: {phone})")
-        return True
+
+        # 调用火山云短信服务发送验证码
+        try:
+            success = send_sms(phone, code)
+            if success:
+                print(f"【验证码发送成功】手机号：{phone}")
+                return True
+            else:
+                print(f"【验证码发送失败】手机号：{phone}，验证码：{code}")
+                # 即使发送失败，验证码也已保存到数据库，可用于测试
+                print(f"验证码已保存到数据库: {code} (手机: {phone})")
+                return False
+        except Exception as e:
+            print(f"【验证码发送异常】{str(e)}")
+            print(f"验证码已保存到数据库: {code} (手机: {phone})")
+            return False
 
     async def verify_code(self, phone: str, code: str) -> bool:
         async with self.db.cursor() as cursor:
             query = """
             SELECT id FROM phone_verification_codes
-            WHERE phone = %s AND code = %s 
+            WHERE phone = %s AND code = %s
             AND expires_at > %s AND used = FALSE
             ORDER BY created_at DESC LIMIT 1
             """
             await cursor.execute(query, (phone, code, datetime.now()))
             result = await cursor.fetchone()
-            
+
             if result:
                 update_query = "UPDATE phone_verification_codes SET used = TRUE WHERE id = %s"
                 await cursor.execute(update_query, (result[0],))
@@ -76,7 +91,7 @@ class UserService:
         try:
             async with self.db.cursor() as cursor:
                 await cursor.execute("""
-                    INSERT INTO strategy_config_tags (
+                    INSERT INTO strategy_strategy_config_tags (
                         user_id, tag_name, tag_code, strategy_type, category,
                         meaning, is_enabled, is_filter, threshold_value, sort_order
                     )
@@ -93,12 +108,12 @@ class UserService:
     async def login_by_phone(self, phone: str, code: str) -> Optional[dict]:
         if not await self.verify_code(phone, code):
             return None
-        
+
         async with self.db.cursor() as cursor:
             query = "SELECT * FROM users WHERE phone = %s AND status = 'active'"
             await cursor.execute(query, (phone,))
             row = await cursor.fetchone()
-            
+
             if row:
                 await cursor.execute("DESC users")
                 columns = [col[0] for col in await cursor.fetchall()]
@@ -115,7 +130,7 @@ class UserService:
             "code": code,
             "grant_type": "authorization_code"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params)
             if response.status_code == 200:
@@ -131,7 +146,7 @@ class UserService:
             "openid": openid,
             "lang": "zh_CN"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.get(url, params=params)
             if response.status_code == 200:
@@ -142,18 +157,18 @@ class UserService:
         token_data = await self.get_wechat_access_token(code)
         if not token_data:
             return None
-        
+
         openid = token_data.get("openid")
         access_token = token_data.get("access_token")
-        
+
         userinfo = await self.get_wechat_userinfo(access_token, openid)
         nickname = userinfo.get("nickname", f"wx_{openid[-6:]}") if userinfo else f"wx_{openid[-6:]}"
-        
+
         async with self.db.cursor() as cursor:
             query = "SELECT * FROM users WHERE wechat_openid = %s AND status = 'active'"
             await cursor.execute(query, (openid,))
             row = await cursor.fetchone()
-            
+
             if not row:
                 insert_query = """
                 INSERT INTO users (wechat_openid, username, role)
@@ -164,7 +179,7 @@ class UserService:
                 user_id = cursor.lastrowid
                 await cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
                 row = await cursor.fetchone()
-            
+
             await cursor.execute("DESC users")
             columns = [col[0] for col in await cursor.fetchall()]
             user = dict(zip(columns, row))
@@ -194,21 +209,21 @@ class UserService:
     async def update_user(self, user_id: int, **kwargs) -> Optional[dict]:
         fields = []
         values = []
-        
+
         for key, value in kwargs.items():
             if value is not None and key in ['username', 'role', 'status']:
                 fields.append(f"{key} = %s")
                 values.append(value)
-        
+
         if not fields:
             return None
-        
+
         values.append(user_id)
         async with self.db.cursor() as cursor:
             query = f"UPDATE users SET {', '.join(fields)} WHERE id = %s"
             await cursor.execute(query, tuple(values))
             await self.db.commit()
-            
+
             if cursor.rowcount > 0:
                 await cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
                 row = await cursor.fetchone()

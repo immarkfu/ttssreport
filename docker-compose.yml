@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # MySQL 数据库
   mysql:
-    image: mysql:8.0
+    image: docker.aityp.com/mysql:8.0
     container_name: ttssreport-mysql
     restart: unless-stopped
     environment:
@@ -24,7 +24,7 @@ services:
 
   # 后端 API (FastAPI)
   backend:
-    image: immarkfu/ttssreport-backend:latest
+    image: docker.aityp.com/image/docker.io/immarkfu/ttssreport-backend:latest
     container_name: ttssreport-backend
     restart: unless-stopped
     depends_on:
@@ -44,7 +44,7 @@ services:
 
   # 前端 (React + Vite)
   frontend:
-    image: immarkfu/ttssreport-frontend:latest
+    image: docker.aityp.com/image/docker.io/immarkfu/ttssreport-frontend:latest
     container_name: ttssreport-frontend
     restart: unless-stopped
     depends_on:

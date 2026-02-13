@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     WECHAT_APP_SECRET: str = ""
     WECHAT_REDIRECT_URI: str = ""
 
+    # 火山云短信配置
+    VOLCENGINE_SMS_ACCESS_KEY: str = ""
+    VOLCENGINE_SMS_SECRET_KEY: str = ""
+    VOLCENGINE_SMS_SIGN_NAME: str = ""
+    VOLCENGINE_SMS_TEMPLATE_ID: str = ""
+    VOLCENGINE_SMS_ENDPOINT: str = "https://sms.volcengineapi.com"
+    VOLCENGINE_SMS_REGION: str = "cn-north-1"
+
     @property
     def database_url(self) -> str:
         return f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset={self.DB_CHARSET}"

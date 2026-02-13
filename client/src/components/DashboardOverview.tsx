@@ -6,7 +6,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { marketOverview, signalDistribution, generateKLineData } from '@/data/mockData';
+import { generateKLineData } from '@/data/mockData';
+import { useMarketOverview, useSignalDistribution } from '@/api/market';
 import StatCard from './StatCard';
 import KLineChart from './charts/KLineChart';
 import {
@@ -30,17 +31,21 @@ interface DashboardOverviewProps {
 export default function DashboardOverview({ onNavigate }: DashboardOverviewProps) {
   const [indexKLineData, setIndexKLineData] = useState<ReturnType<typeof generateKLineData>>([]);
 
+  // 使用真实API获取数据
+  const { data: marketOverview, isLoading: isLoadingOverview, error: overviewError } = useMarketOverview();
+  const { data: signalDistribution, isLoading: isLoadingDistribution } = useSignalDistribution();
+
   // 生成上证指数K线数据（基准价格3000点左右）
   useEffect(() => {
     const data = generateKLineData(3000, 60);
     setIndexKLineData(data);
   }, []);
 
-  // 信号强度分布数据
+  // 信号强度分布数据（使用真实数据或默认值）
   const signalData = [
-    { name: '强信号', value: signalDistribution.strong, color: '#22C55E' },
-    { name: '中信号', value: signalDistribution.medium, color: '#F59E0B' },
-    { name: '观察池', value: Math.min(signalDistribution.pool, 100), color: '#94A3B8' },
+    { name: '强信号', value: signalDistribution?.strong || 0, color: '#22C55E' },
+    { name: '中信号', value: signalDistribution?.medium || 0, color: '#F59E0B' },
+    { name: '观察池', value: Math.min(signalDistribution?.pool || 0, 100), color: '#94A3B8' },
   ];
 
   const handleB1Click = () => {
@@ -49,6 +54,30 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
 
   const handleS1Click = () => {
     onNavigate?.('s1-signals');
+  };
+
+  // 使用默认值或真实数据
+  const overview = marketOverview || {
+    activeMarketCap: '0',
+    marketSentiment: '加载中...',
+    sentimentChange: 0,
+    todayB1Count: 0,
+    monitorPoolCount: 0,
+    b1Condition: 'J值<13 & MACD>0',
+    b1Triggered: 0,
+    b1Total: 0,
+    s1Triggered: 0,
+    s1Total: 0,
+    sellWarningCount: 0,
+    sellCondition: '跌破白线/长放飞',
+    yesterdayWinRate: 0,
+    winRateCondition: '次日涨幅 > 1%'
+  };
+
+  const distribution = signalDistribution || {
+    strong: 0,
+    medium: 0,
+    pool: 0
   };
 
   return (
@@ -61,20 +90,27 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
         </p>
       </div>
 
+      {/* 错误提示 */}
+      {(overviewError || isLoadingOverview) && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+          {isLoadingOverview ? '正在加载市场数据...' : '数据加载失败，请刷新重试'}
+        </div>
+      )}
+
       {/* 统计卡片网格 */}
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           title="当日活跃市值"
-          value={marketOverview.activeMarketCap}
-          subtitle={`市场情绪${marketOverview.marketSentiment}`}
-          change={marketOverview.sentimentChange}
+          value={overview.activeMarketCap}
+          subtitle={`市场情绪${overview.marketSentiment}`}
+          change={overview.sentimentChange}
           icon={Activity}
           variant="default"
         />
         <StatCard
           title="今日B1触发"
-          value={`${marketOverview.todayB1Count}/${marketOverview.monitorPoolCount}`}
-          subtitle={marketOverview.b1Condition}
+          value={`${overview.todayB1Count}/${overview.monitorPoolCount}`}
+          subtitle={overview.b1Condition}
           icon={TrendingUp}
           variant="success"
           clickable
@@ -82,8 +118,8 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
         />
         <StatCard
           title="持仓卖出预警"
-          value={marketOverview.sellWarningCount}
-          subtitle={marketOverview.sellCondition}
+          value={overview.sellWarningCount}
+          subtitle={overview.sellCondition}
           icon={TrendingDown}
           variant="danger"
           clickable
@@ -91,8 +127,8 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
         />
         <StatCard
           title="昨日观察胜率"
-          value={`${marketOverview.yesterdayWinRate}%`}
-          subtitle={marketOverview.winRateCondition}
+          value={`${overview.yesterdayWinRate}%`}
+          subtitle={overview.winRateCondition}
           icon={Target}
           variant="success"
         />
@@ -165,21 +201,21 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                   强信号
                 </span>
-                <span className="font-mono font-medium text-emerald-600">{signalDistribution.strong}只</span>
+                <span className="font-mono font-medium text-emerald-600">{distribution.strong}只</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
                   中信号
                 </span>
-                <span className="font-mono font-medium text-amber-600">{signalDistribution.medium}只</span>
+                <span className="font-mono font-medium text-amber-600">{distribution.medium}只</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
                   观察池/排除
                 </span>
-                <span className="font-mono text-muted-foreground">{signalDistribution.pool}+</span>
+                <span className="font-mono text-muted-foreground">{distribution.pool}+</span>
               </div>
             </div>
           </div>
