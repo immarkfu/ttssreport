@@ -11,7 +11,7 @@ env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  # ─── 前端构建检查 ────────────────────────────────────────────────
+  # ─── 前端构建 ────────────────────────────────────────────────────────
   frontend:
     name: Frontend (React + Vite)
     runs-on: ubuntu-latest
@@ -49,7 +49,14 @@ jobs:
       - name: Build
         run: pnpm run build
 
-  # ─── 后端依赖检查 ────────────────────────────────────────────────
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: client/dist/
+          retention-days: 1
+
+  # ─── 后端依赖检查 ────────────────────────────────────────────────────
   backend:
     name: Backend (FastAPI)
     runs-on: ubuntu-latest
@@ -85,7 +92,7 @@ jobs:
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
 
-  # ─── SSH 部署到现网服务器（在服务器本地构建镜像）─────────────────
+  # ─── SSH 部署到现网服务器（在服务器本地构建镜像）─────────────────────
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
@@ -94,6 +101,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: client/dist/
 
       - name: Install SSH key
         uses: webfactory/ssh-agent@v0.9.0
@@ -105,10 +118,9 @@ jobs:
 
       - name: Package and transfer code to server
         run: |
-          # 打包代码（排除 node_modules 和 .git）
+          # 打包代码（包含已构建的前端 dist，排除不必要文件）
           tar --exclude='.git' \
               --exclude='client/node_modules' \
-              --exclude='client/dist' \
               --exclude='__pycache__' \
               --exclude='*.pyc' \
               -czf /tmp/ttssreport.tar.gz .
@@ -118,58 +130,57 @@ jobs:
           # 传输到服务器
           scp /tmp/ttssreport.tar.gz ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/ttssreport.tar.gz
 
-      - name: Build and deploy on server
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
-          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-          VOLCENGINE_SMS_ACCESS_KEY: ${{ secrets.VOLCENGINE_SMS_ACCESS_KEY }}
-          VOLCENGINE_SMS_SECRET_KEY: ${{ secrets.VOLCENGINE_SMS_SECRET_KEY }}
-          VOLCENGINE_SMS_SIGN_NAME: ${{ secrets.VOLCENGINE_SMS_SIGN_NAME }}
-          VOLCENGINE_SMS_TEMPLATE_ID: ${{ secrets.VOLCENGINE_SMS_TEMPLATE_ID }}
+      - name: Write .env to server
         run: |
-          # 写入 .env 文件到服务器
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "mkdir -p /root/ttssreport"
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cat > /root/ttssreport/.env" << ENVEOF
-          DB_HOST=${DB_HOST}
-          DB_PORT=${DB_PORT:-3306}
-          DB_USER=${DB_USER}
-          DB_PASSWORD=${DB_PASSWORD}
-          DB_NAME=${DB_NAME}
-          TUSHARE_TOKEN=${TUSHARE_TOKEN}
-          JWT_SECRET_KEY=${JWT_SECRET_KEY}
-          VOLCENGINE_SMS_ACCESS_KEY=${VOLCENGINE_SMS_ACCESS_KEY}
-          VOLCENGINE_SMS_SECRET_KEY=${VOLCENGINE_SMS_SECRET_KEY}
-          VOLCENGINE_SMS_SIGN_NAME=${VOLCENGINE_SMS_SIGN_NAME}
-          VOLCENGINE_SMS_TEMPLATE_ID=${VOLCENGINE_SMS_TEMPLATE_ID}
-          ENVEOF
-          
-          # 在服务器上解压代码并构建镜像
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cat > /root/ttssreport/.env << 'ENVEOF'
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          TUSHARE_TOKEN=${{ secrets.TUSHARE_TOKEN }}
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          VOLCENGINE_SMS_ACCESS_KEY=${{ secrets.VOLCENGINE_SMS_ACCESS_KEY }}
+          VOLCENGINE_SMS_SECRET_KEY=${{ secrets.VOLCENGINE_SMS_SECRET_KEY }}
+          VOLCENGINE_SMS_SIGN_NAME=${{ secrets.VOLCENGINE_SMS_SIGN_NAME }}
+          VOLCENGINE_SMS_TEMPLATE_ID=${{ secrets.VOLCENGINE_SMS_TEMPLATE_ID }}
+          ENVEOF"
+
+      - name: Build and deploy on server
+        run: |
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash << 'SSHEOF'
             set -e
+            export DOCKER_API_VERSION=1.43
+            
             echo "=== 解压代码 ==="
+            rm -rf /root/ttssreport/src
             mkdir -p /root/ttssreport/src
             tar -xzf /tmp/ttssreport.tar.gz -C /root/ttssreport/src
             rm -f /tmp/ttssreport.tar.gz
             
-            echo "=== 构建后端镜像（使用国内 pip 镜像源）==="
             cd /root/ttssreport/src
+            
+            echo "=== 构建后端镜像（使用阿里云 pip 镜像源）==="
             docker build \
               --build-arg PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
               --build-arg PIP_TRUSTED_HOST=mirrors.aliyun.com \
               -f Dockerfile.backend \
               -t ttssreport-backend:latest \
-              . 2>&1 | tail -20
+              . 2>&1 | tail -5
             
-            echo "=== 构建前端镜像 ==="
+            echo "=== 构建前端镜像（使用已构建的 dist）==="
+            cat > /tmp/Dockerfile.frontend.tmp << 'DOCKEREOF'
+          FROM nginx:alpine
+          COPY client/dist /usr/share/nginx/html
+          COPY nginx.conf /etc/nginx/conf.d/default.conf
+          EXPOSE 80
+          CMD ["nginx", "-g", "daemon off;"]
+          DOCKEREOF
             docker build \
-              -f Dockerfile \
+              -f /tmp/Dockerfile.frontend.tmp \
               -t ttssreport-frontend:latest \
-              . 2>&1 | tail -10
+              . 2>&1 | tail -5
             
             echo "=== 写入 docker-compose.prod.yml ==="
             cat > /root/ttssreport/docker-compose.prod.yml << 'COMPOSEEOF'
@@ -184,19 +195,22 @@ jobs:
                 - "8000:8000"
               volumes:
                 - backend_logs:/app/logs
-
+              networks:
+                - ttssnet
             frontend:
               image: ttssreport-frontend:latest
               container_name: ttssreport-frontend
               restart: unless-stopped
-              depends_on:
-                - backend
               ports:
                 - "80:80"
-
+              networks:
+                - ttssnet
           volumes:
             backend_logs:
               driver: local
+          networks:
+            ttssnet:
+              name: ttssnet
           COMPOSEEOF
             
             echo "=== 重启服务 ==="

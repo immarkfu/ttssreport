@@ -15,4 +15,4 @@ numpy==1.26.2
 sqlalchemy==2.0.23
 schedule==1.2.0
 httpx==0.25.2
-volcengine_python_sdk==5.0.7
+volcengine==1.0.98
