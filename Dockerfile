@@ -3,14 +3,14 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# 安装 pnpm
-RUN npm install -g pnpm
+# 安装 pnpm（使用清华镜像加速）
+RUN npm install -g pnpm --registry=https://registry.npmmirror.com
 
 # 复制所有文件
 COPY . .
 
-# 安装依赖
-RUN pnpm install --frozen-lockfile
+# 安装依赖（使用清华镜像加速）
+RUN pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
 
 # 构建
 RUN pnpm run build

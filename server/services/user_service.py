@@ -7,6 +7,9 @@ from core.config import settings
 from core.security import create_access_token, verify_token
 from services.smsService import send_sms
 
+# 超级管理员手机号（硬编码）
+SUPER_ADMIN_PHONE = "13691962610"
+
 class UserService:
     def __init__(self, db):
         self.db = db
@@ -32,7 +35,6 @@ class UserService:
                 return True
             else:
                 print(f"【验证码发送失败】手机号：{phone}，验证码：{code}")
-                # 即使发送失败，验证码也已保存到数据库，可用于测试
                 print(f"验证码已保存到数据库: {code} (手机: {phone})")
                 return False
         except Exception as e:
@@ -62,19 +64,29 @@ class UserService:
         if not await self.verify_code(phone, code):
             return None
 
+        # 超管手机号固定为 admin 角色
+        role = 'admin' if phone == SUPER_ADMIN_PHONE else 'comm'
+
         async with self.db.cursor() as cursor:
             check_query = "SELECT id FROM users WHERE phone = %s"
             await cursor.execute(check_query, (phone,))
             existing = await cursor.fetchone()
             if existing:
+                # 已存在用户，确保超管角色正确
+                if phone == SUPER_ADMIN_PHONE:
+                    await cursor.execute(
+                        "UPDATE users SET role = 'admin' WHERE phone = %s",
+                        (phone,)
+                    )
+                    await self.db.commit()
                 return None
 
             username = username or f"user_{phone[-4:]}"
             query = """
             INSERT INTO users (phone, username, role)
-            VALUES (%s, %s, 'comm')
+            VALUES (%s, %s, %s)
             """
-            await cursor.execute(query, (phone, username))
+            await cursor.execute(query, (phone, username, role))
             await self.db.commit()
             user_id = cursor.lastrowid
 
@@ -84,22 +96,33 @@ class UserService:
             columns = [col[0] for col in await cursor.fetchall()]
             user = dict(zip(columns, row))
 
-        await self._copy_admin_tags(user_id)
+        # 普通用户注册时，从超管账号复制标签配置
+        if role == 'comm':
+            await self._copy_admin_tags(user_id)
         return user
 
     async def _copy_admin_tags(self, user_id: int):
+        """新用户注册时，从超管账号（user_id=1 或超管手机号对应用户）复制标签配置"""
         try:
             async with self.db.cursor() as cursor:
+                # 找到超管用户 id
+                await cursor.execute(
+                    "SELECT id FROM users WHERE phone = %s LIMIT 1",
+                    (SUPER_ADMIN_PHONE,)
+                )
+                admin_row = await cursor.fetchone()
+                admin_user_id = admin_row[0] if admin_row else 1
+
                 await cursor.execute("""
-                    INSERT INTO strategy_strategy_config_tags (
+                    INSERT INTO strategy_config_tags (
                         user_id, tag_name, tag_code, strategy_type, category,
                         meaning, is_enabled, is_filter, threshold_value, sort_order
                     )
                     SELECT %s, tag_name, tag_code, strategy_type, category,
                            meaning, is_enabled, is_filter, threshold_value, sort_order
                     FROM strategy_config_tags
-                    WHERE user_id = 1
-                """, (user_id,))
+                    WHERE user_id = %s
+                """, (user_id, admin_user_id))
                 await self.db.commit()
                 print(f"已为用户 {user_id} 复制管理员标签配置")
         except Exception as e:
@@ -118,6 +141,16 @@ class UserService:
                 await cursor.execute("DESC users")
                 columns = [col[0] for col in await cursor.fetchall()]
                 user = dict(zip(columns, row))
+
+                # 确保超管手机号始终具有 admin 角色
+                if phone == SUPER_ADMIN_PHONE and user.get('role') != 'admin':
+                    await cursor.execute(
+                        "UPDATE users SET role = 'admin' WHERE phone = %s",
+                        (phone,)
+                    )
+                    await self.db.commit()
+                    user['role'] = 'admin'
+
                 token = create_access_token({"sub": str(user['id']), "role": user['role']})
                 return {"user": user, "token": token}
         return None
@@ -177,6 +210,7 @@ class UserService:
                 await cursor.execute(insert_query, (openid, nickname))
                 await self.db.commit()
                 user_id = cursor.lastrowid
+                await self._copy_admin_tags(user_id)
                 await cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
                 row = await cursor.fetchone()
 

@@ -11,6 +11,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import UserManagement from "./pages/UserManagement";
 import WechatCallback from "./pages/WechatCallback";
+import Watchlist from "./pages/Watchlist";
+import Admin from "./pages/Admin";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -26,6 +28,12 @@ function Router() {
       <Route path={"/config-tags"}>
         <ProtectedRoute><ConfigTags /></ProtectedRoute>
       </Route>
+      <Route path={"/watchlist"}>
+        <ProtectedRoute><Watchlist /></ProtectedRoute>
+      </Route>
+      <Route path={"/admin"}>
+        <ProtectedRoute requireAdmin><Admin /></ProtectedRoute>
+      </Route>
       <Route path={"/user-management"}>
         <ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>
       </Route>
@@ -35,18 +43,12 @@ function Router() {
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
         <ThemeProvider
           defaultTheme="light"
-          // switchable
         >
           <TooltipProvider>
             <Toaster />

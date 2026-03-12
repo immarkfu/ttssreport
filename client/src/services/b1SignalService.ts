@@ -120,15 +120,11 @@ export interface LatestTradeDateResponse {
   message?: string;
 }
 
-function getUserIdFromStorage(): number {
-  const savedUser = localStorage.getItem('user');
-  if (savedUser) {
-    const user = JSON.parse(savedUser);
-    if (user && user.id) {
-      return user.id;
-    }
-  }
-  throw new Error('用户未登录');
+/** 从 localStorage 读取 token 并构造 Authorization header */
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('token');
+  if (!token || token === 'guest_token') return {};
+  return { Authorization: `Bearer ${token}` };
 }
 
 export const b1SignalService = {
@@ -158,18 +154,19 @@ export const b1SignalService = {
   },
 
   async getConfigTags(): Promise<TagsResponse> {
-    const userId = getUserIdFromStorage();
-    const response = await fetch(`${API_BASE_URL}/config-tags/list?user_id=${userId}`);
+    const response = await fetch(`${API_BASE_URL}/config-tags/list`, {
+      headers: { ...authHeaders() },
+    });
     if (!response.ok) throw new Error('Failed to fetch tags');
-    return response.json();
+    const data = await response.json();
+    return { success: true, data: Array.isArray(data) ? data : (data.data ?? []) };
   },
 
   async saveConfigTag(id: number, thresholdValue: number | null, isUpdate: boolean): Promise<{ success: boolean }> {
-    const userId = getUserIdFromStorage();
     const response = await fetch(`${API_BASE_URL}/config-tags/tags/update`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, user_id: userId, threshold_value: thresholdValue, is_update: isUpdate }),
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ id, threshold_value: thresholdValue, is_update: isUpdate }),
     });
     if (!response.ok) throw new Error('Failed to save tag config');
     return response.json();
@@ -182,17 +179,15 @@ export const b1SignalService = {
     jThreshold?: number,
     macdDifThreshold?: number
   ): Promise<B1FilterAndTagResponse> {
-    const userId = getUserIdFromStorage();
     const response = await fetch(`${API_BASE_URL}/b1-signal/filter-and-tag`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         trade_date: tradeDate,
         custom_tags: customTags,
         save_to_db: saveToDb,
         j_threshold: jThreshold,
         macd_dif_threshold: macdDifThreshold,
-        user_id: userId,
       }),
     });
     if (!response.ok) {
@@ -202,12 +197,10 @@ export const b1SignalService = {
   },
 
   async saveTagConfig(tags: { id: number; is_enabled: number; threshold_value: number | null }[]): Promise<{ success: boolean }> {
-    const userId = getUserIdFromStorage();
-    const payload = { tags, user_id: userId };
     const response = await fetch(`${API_BASE_URL}/b1-signal/save-tag-config`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ tags }),
     });
     if (!response.ok) {
       throw new Error('Failed to save tag config');
@@ -216,11 +209,10 @@ export const b1SignalService = {
   },
 
   async saveThreshold(tagCode: string, thresholdValue: number): Promise<{ success: boolean }> {
-    const userId = getUserIdFromStorage();
     const response = await fetch(`${API_BASE_URL}/b1-signal/save-threshold`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tag_code: tagCode, threshold_value: thresholdValue, user_id: userId }),
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ tag_code: tagCode, threshold_value: thresholdValue }),
     });
     if (!response.ok) {
       throw new Error('Failed to save threshold');

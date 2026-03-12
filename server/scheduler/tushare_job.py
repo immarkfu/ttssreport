@@ -891,16 +891,17 @@ class TushareDataIntegrator:
 
 
 if __name__ == '__main__':
-    # 示例使用
-    db_config = {
-        'host': 'mysql-2579b2bfcbcb-public.rds.volces.com',
-        'port': 3306,
-        'user': 'bestismark',
-        'password': 'Aa123456',
-        'database': 'ttssreport'
-    }
+    # 从环境变量/配置文件读取，不硬编码敏感信息
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from core.config import settings as _settings
 
-    tushare_token = 'a266b71c03f7666e00c6492021a3f0e8517d7242ad446d79fb363fc9'
+    db_config = _settings.db_config
+    tushare_token = _settings.TUSHARE_TOKEN
+
+    if not tushare_token:
+        print("错误：TUSHARE_TOKEN 环境变量未设置")
+        sys.exit(1)
 
     integrator = TushareDataIntegrator(tushare_token, db_config)
 

@@ -5,10 +5,10 @@
  */
 
 import { cn } from '@/lib/utils';
+import { useLocation } from 'wouter';
 import {
   LayoutDashboard,
   TrendingUp,
-  TrendingDown,
   BarChart3,
   Database,
   Heart,
@@ -16,7 +16,8 @@ import {
   ChevronRight,
   LogOut,
   User,
-  Tags,
+  Eye,
+  ShieldCheck,
   Users,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -40,20 +41,31 @@ interface SidebarProps {
   onLogout?: () => void;
 }
 
+// 主导航项：内部 tab 切换
 const baseNavItems = [
-  { id: 'dashboard', label: '总览仪表盘', icon: LayoutDashboard },
-  { id: 'b1-signals', label: 'B1筛选看板', icon: TrendingUp },
-  // { id: 's1-signals', label: '每日S1卖出提醒', icon: TrendingDown },
-  { id: 'observation', label: '个人观察统计池', icon: BarChart3 },
-  // { id: 'config-tags', label: '配置标签管理', icon: Tags },
+  { id: 'dashboard', label: '总览仪表盘', icon: LayoutDashboard, route: null },
+  { id: 'b1-signals', label: 'B1筛选看板', icon: TrendingUp, route: null },
+  { id: 'observation', label: '个人观察统计池', icon: BarChart3, route: null },
+];
+
+// 独立路由页面导航项
+const routeNavItems = [
+  { id: 'watchlist', label: '我的观察池', icon: Eye, route: '/watchlist' },
+  { id: 'config-tags', label: '标签配置', icon: BarChart3, route: '/config-tags' },
 ];
 
 const adminNavItems = [
-  { id: 'user-management', label: '账号管理', icon: Users },
+  { id: 'admin', label: '管理后台', icon: ShieldCheck, route: '/admin' },
+  { id: 'user-management', label: '账号管理', icon: Users, route: '/user-management' },
 ];
 
 export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse, user, onLogout }: SidebarProps) {
-  const navItems = user?.role === 'admin' ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+  const [, navigate] = useLocation();
+  const inPageItems = baseNavItems;
+  const extraItems = user?.role === 'admin'
+    ? [...routeNavItems, ...adminNavItems]
+    : routeNavItems;
+  const navItems = [...inPageItems, ...extraItems];
   return (
     <aside 
       className={cn(
@@ -87,7 +99,13 @@ export default function Sidebar({ activeTab, onTabChange, collapsed, onToggleCol
           const buttonContent = (
             <button
               key={item.id}
-              onClick={() => onTabChange(item.id)}
+              onClick={() => {
+                if ((item as any).route) {
+                  navigate((item as any).route);
+                } else {
+                  onTabChange(item.id);
+                }
+              }}
               className={cn(
                 'w-full text-left transition-all duration-200 rounded-lg flex items-center',
                 collapsed ? 'p-2.5 justify-center' : 'px-3 py-2.5 gap-3',
