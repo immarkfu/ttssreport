@@ -19,7 +19,8 @@ from sqlalchemy.sql import text
 from sqlalchemy.pool import QueuePool
 import traceback
 
-# 配置日志
+# 配置日志（确保日志目录存在）
+os.makedirs('logs', exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

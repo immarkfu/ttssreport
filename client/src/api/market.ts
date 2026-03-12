@@ -1,7 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE || '';
 
 export interface MarketOverview {
   activeMarketCap: string;
@@ -30,8 +28,9 @@ export const useMarketOverview = () => {
   return useQuery<MarketOverview>({
     queryKey: ['marketOverview'],
     queryFn: async () => {
-      const response = await axios.get(`${API_BASE}/api/v1/market/overview`);
-      return response.data;
+      const res = await fetch(`${API_BASE}/api/v1/market/overview`);
+      if (!res.ok) throw new Error('Failed to fetch market overview');
+      return res.json();
     },
     staleTime: 5 * 60 * 1000, // 5分钟缓存
     refetchInterval: 5 * 60 * 1000, // 5分钟自动刷新
@@ -42,8 +41,9 @@ export const useSignalDistribution = () => {
   return useQuery<SignalDistribution>({
     queryKey: ['signalDistribution'],
     queryFn: async () => {
-      const response = await axios.get(`${API_BASE}/api/v1/market/signal-distribution`);
-      return response.data;
+      const res = await fetch(`${API_BASE}/api/v1/market/signal-distribution`);
+      if (!res.ok) throw new Error('Failed to fetch signal distribution');
+      return res.json();
     },
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,

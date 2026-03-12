@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # MySQL 数据库
+  # MySQL 数据库（仅在未使用外部 RDS 时启用）
   mysql:
     image: docker.aityp.com/mysql:8.0
     container_name: ttssreport-mysql
@@ -24,33 +24,54 @@ services:
 
   # 后端 API (FastAPI)
   backend:
-    image: docker.aityp.com/image/docker.io/immarkfu/ttssreport-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: immarkfu/ttssreport-backend:latest
     container_name: ttssreport-backend
     restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
     environment:
-      - TUSHARE_TOKEN=${TUSHARE_TOKEN}
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=ttssuser
-      - MYSQL_PASSWORD=ttsspassword
-      - MYSQL_DATABASE=ttssreport
+      # 数据库配置（支持 DB_* 和 DATABASE_* 两种命名）
+      - DB_HOST=${DB_HOST:-mysql}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-ttssuser}
+      - DB_PASSWORD=${DB_PASSWORD:-ttsspassword}
+      - DB_NAME=${DB_NAME:-ttssreport}
+      # 兼容旧版 DATABASE_* 命名
+      - DATABASE_HOST=${DATABASE_HOST:-}
+      - DATABASE_PORT=${DATABASE_PORT:-}
+      - DATABASE_USER=${DATABASE_USER:-}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-}
+      - DATABASE_NAME=${DATABASE_NAME:-}
+      # Tushare
+      - TUSHARE_TOKEN=${TUSHARE_TOKEN:-}
+      # JWT
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-ttssreport_jwt_secret_change_in_production}
+      - JWT_EXPIRE_MINUTES=${JWT_EXPIRE_MINUTES:-1440}
+      # 火山云短信
+      - VOLCENGINE_SMS_ACCESS_KEY=${VOLCENGINE_SMS_ACCESS_KEY:-}
+      - VOLCENGINE_SMS_SECRET_KEY=${VOLCENGINE_SMS_SECRET_KEY:-}
+      - VOLCENGINE_SMS_SIGN_NAME=${VOLCENGINE_SMS_SIGN_NAME:-}
+      - VOLCENGINE_SMS_TEMPLATE_ID=${VOLCENGINE_SMS_TEMPLATE_ID:-}
+      - VOLCENGINE_SMS_ENDPOINT=${VOLCENGINE_SMS_ENDPOINT:-https://sms.volcengineapi.com}
+      - VOLCENGINE_SMS_REGION=${VOLCENGINE_SMS_REGION:-cn-north-1}
     ports:
       - "8000:8000"
     volumes:
       - backend_logs:/app/logs
 
-  # 前端 (React + Vite)
+  # 前端 (React + Nginx)
   frontend:
-    image: docker.aityp.com/image/docker.io/immarkfu/ttssreport-frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: immarkfu/ttssreport-frontend:latest
     container_name: ttssreport-frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "3000:80"
+      - "80:80"
 
 volumes:
   mysql_data:

@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制后端代码
 COPY server/ /app/
 
+# 创建日志目录（防止 tushare_job.py 启动时报 FileNotFoundError）
+RUN mkdir -p /app/logs
+
 # 暴露端口
 EXPOSE 8000
 

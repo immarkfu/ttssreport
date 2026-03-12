@@ -1,18 +1,28 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
-    DB_HOST: str = "xxxxxxxxxxx"
+    # 数据库配置：优先读取 DB_* 变量，兼容 docker-compose 中的 DATABASE_* 变量
+    DB_HOST: str = "localhost"
     DB_PORT: int = 3306
-    DB_USER: str = "xxxxxx"
-    DB_PASSWORD: str = "xxxxxxxxx"
-    DB_NAME: str = "xxxxxxxxxx"
+    DB_USER: str = "root"
+    DB_PASSWORD: str = ""
+    DB_NAME: str = "ttssreport"
     DB_CHARSET: str = "utf8mb4"
 
-    TUSHARE_TOKEN: str = "xxxxxxxxxxxxxxxxx"
+    # docker-compose 兼容变量（DATABASE_* 前缀）
+    DATABASE_HOST: Optional[str] = None
+    DATABASE_PORT: Optional[int] = None
+    DATABASE_USER: Optional[str] = None
+    DATABASE_PASSWORD: Optional[str] = None
+    DATABASE_NAME: Optional[str] = None
 
-    JWT_SECRET_KEY: str = "xxxxxxxxxxxxx"
+    TUSHARE_TOKEN: str = ""
+
+    JWT_SECRET_KEY: str = "ttssreport_jwt_secret_change_in_production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 1440
 
@@ -30,6 +40,19 @@ class Settings(BaseSettings):
     VOLCENGINE_SMS_ENDPOINT: str = "https://sms.volcengineapi.com"
     VOLCENGINE_SMS_REGION: str = "cn-north-1"
 
+    def model_post_init(self, __context):
+        """兼容 DATABASE_* 环境变量，覆盖 DB_* 的默认值"""
+        if self.DATABASE_HOST:
+            object.__setattr__(self, 'DB_HOST', self.DATABASE_HOST)
+        if self.DATABASE_PORT:
+            object.__setattr__(self, 'DB_PORT', self.DATABASE_PORT)
+        if self.DATABASE_USER:
+            object.__setattr__(self, 'DB_USER', self.DATABASE_USER)
+        if self.DATABASE_PASSWORD:
+            object.__setattr__(self, 'DB_PASSWORD', self.DATABASE_PASSWORD)
+        if self.DATABASE_NAME:
+            object.__setattr__(self, 'DB_NAME', self.DATABASE_NAME)
+
     @property
     def database_url(self) -> str:
         return f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset={self.DB_CHARSET}"
@@ -46,6 +69,8 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # 允许额外字段（兼容旧版本）
+        extra = "ignore"
 
 
 @lru_cache()

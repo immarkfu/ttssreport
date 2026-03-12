@@ -2,23 +2,23 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 env:
   NODE_VERSION: '22'
   PYTHON_VERSION: '3.11'
+  VOLCES_REGISTRY: ttssreport-cn-beijing.cr.volces.com
+  VOLCES_NAMESPACE: ttssreport-1
+  BACKEND_IMAGE: ttssreport-backend
+  FRONTEND_IMAGE: ttssreport-frontend
 
 jobs:
-  # 前端测试和构建
+  # ─── 前端构建检查 ────────────────────────────────────────────────
   frontend:
     name: Frontend (React + Vite)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./client
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,8 +34,7 @@ jobs:
       - name: Get pnpm store directory
         id: pnpm-cache
         shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+        run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
@@ -54,31 +53,13 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: client/dist
-          retention-days: 7
-
-  # 后端测试
+  # ─── 后端依赖检查 ────────────────────────────────────────────────
   backend:
     name: Backend (FastAPI)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./server
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: rootpassword
-          MYSQL_DATABASE: ttssreport_test
-          MYSQL_USER: ttssuser
-          MYSQL_PASSWORD: ttsspassword
-        options: --health-cmd="mysqladmin ping -h localhost -u root -prootpassword" --health-interval=10s --health-timeout=5s --health-retries=5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -97,23 +78,19 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: |
-          pip install --no-cache-dir -r requirements.txt
-          pip install pytest pytest-asyncio httpx
+        run: pip install --no-cache-dir -r requirements.txt
 
       - name: Run tests
-        run: |
-          pytest test/ -v || echo "No tests found, skipping"
+        run: pytest test/ -v || echo "No tests found, skipping"
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
 
-  # Docker 构建
+  # ─── 构建镜像并推送到火山云镜像仓库 ─────────────────────────────
   docker:
-    name: Docker Build
+    name: Build & Push to Volces CR
     runs-on: ubuntu-latest
     needs: [frontend, backend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -121,21 +98,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Login to Volces Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ${{ env.VOLCES_REGISTRY }}
+          username: ${{ secrets.VOLCES_USERNAME }}
+          password: ${{ secrets.VOLCES_PASSWORD }}
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
-          context: ./server
+          context: .
           file: ./Dockerfile.backend
           push: true
           tags: |
-            immarkfu/ttssreport-backend:latest
-            immarkfu/ttssreport-backend:${{ github.sha }}
+            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
 
       - name: Build and push frontend image
         uses: docker/build-push-action@v5
@@ -144,26 +122,95 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            immarkfu/ttssreport-frontend:latest
-            immarkfu/ttssreport-frontend:${{ github.sha }}
+            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
 
-  # 部署
+  # ─── SSH 部署到现网服务器 ────────────────────────────────────────
   deploy:
-    name: Deploy
+    name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Install SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Deploy to server
+      - name: Add server to known hosts
+        run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy via SSH
         run: |
-          echo "部署步骤："
-          echo "1. 更新 docker-compose.yml"
-          echo "2. 拉取最新镜像"
-          echo "3. 重启服务"
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash -s << 'ENDSSH'
+            set -e
 
-      - name: Notify deployment
-        run: echo "部署完成！访问 https://your-domain.com"
+            REGISTRY="ttssreport-cn-beijing.cr.volces.com"
+            NAMESPACE="ttssreport-1"
+
+            echo "=== 登录火山云镜像仓库 ==="
+            echo "${{ secrets.VOLCES_PASSWORD }}" | docker login ${REGISTRY} \
+              -u "${{ secrets.VOLCES_USERNAME }}" --password-stdin
+
+            echo "=== 拉取最新镜像 ==="
+            docker pull ${REGISTRY}/${NAMESPACE}/ttssreport-backend:latest
+            docker pull ${REGISTRY}/${NAMESPACE}/ttssreport-frontend:latest
+
+            echo "=== 写入生产 docker-compose ==="
+            mkdir -p /root/ttssreport
+            cat > /root/ttssreport/docker-compose.prod.yml << 'EOF'
+          services:
+            backend:
+              image: ttssreport-cn-beijing.cr.volces.com/ttssreport-1/ttssreport-backend:latest
+              container_name: ttssreport-backend
+              restart: unless-stopped
+              environment:
+                - DATABASE_HOST=mysql-2579b2bfcbcb-public.rds.volces.com
+                - DATABASE_PORT=3306
+                - DATABASE_USER=bestismark
+                - DATABASE_PASSWORD=Aa123456
+                - DATABASE_NAME=tushare
+                - TUSHARE_TOKEN=a266b71c03f7666e00c6492021a3f0e8517d7242ad446d79fb363fc9
+                - JWT_SECRET_KEY=ttssreport_jwt_prod_secret_2026
+              ports:
+                - "8000:8000"
+              volumes:
+                - backend_logs:/app/logs
+
+            frontend:
+              image: ttssreport-cn-beijing.cr.volces.com/ttssreport-1/ttssreport-frontend:latest
+              container_name: ttssreport-frontend
+              restart: unless-stopped
+              depends_on:
+                - backend
+              ports:
+                - "80:80"
+
+          volumes:
+            backend_logs:
+              driver: local
+          EOF
+
+            echo "=== 重启服务 ==="
+            docker compose -f /root/ttssreport/docker-compose.prod.yml down --remove-orphans || true
+            docker compose -f /root/ttssreport/docker-compose.prod.yml up -d
+
+            echo "=== 清理旧镜像 ==="
+            docker image prune -f
+
+            echo "=== 服务状态 ==="
+            docker compose -f /root/ttssreport/docker-compose.prod.yml ps
+
+            echo "✅ 部署完成！"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          sleep 20
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.DEPLOY_HOST }}/ || echo "000")
+          echo "HTTP Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ 部署验证成功！"
+          else
+            echo "⚠️ HTTP 状态码: $HTTP_STATUS，请手动检查服务器"
+          fi

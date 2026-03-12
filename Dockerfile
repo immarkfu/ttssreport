@@ -21,6 +21,9 @@ FROM nginx:alpine
 # 复制构建产物
 COPY --from=builder /app/client/dist /usr/share/nginx/html
 
+# 注入支持 SPA 路由 + API 代理的 nginx 配置
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 # 暴露端口
 EXPOSE 80
 

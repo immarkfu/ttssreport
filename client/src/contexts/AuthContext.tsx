@@ -12,12 +12,32 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  isGuest: boolean;
   login: (token: string, user: User, redirectUrl?: string) => void;
   logout: () => void;
   isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+/** 判断 token 是否为游客 token（非真实 JWT） */
+function isGuestToken(token: string): boolean {
+  return token === 'guest_token' || token === 'null' || token === 'undefined';
+}
+
+/** 简单检查 JWT 是否过期（不验证签名，仅解析 exp 字段） */
+function isTokenExpired(token: string): boolean {
+  if (isGuestToken(token)) return false; // 游客 token 永不过期
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return false;
+    return Date.now() / 1000 > payload.exp;
+  } catch {
+    return true;
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -27,8 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const savedToken = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+      // 检查 token 是否过期，过期则清除
+      if (isTokenExpired(savedToken)) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        return;
+      }
+      try {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
   }, []);
 
@@ -51,9 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = user?.role === 'admin';
+  const isGuest = token ? isGuestToken(token) : false;
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, token, isGuest, login, logout, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );
