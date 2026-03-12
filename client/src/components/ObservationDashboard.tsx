@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import KLineChart from '@/components/charts/KLineChart';
-import { generateKLineData } from '@/data/mockData';
+import { generateKLineData, KLineData } from '@/data/mockData';
 import { cn } from '@/lib/utils';
 import { b1SignalService, B1SignalResult } from '@/services/b1SignalService';
 
@@ -40,6 +40,8 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
   const [loading, setLoading] = useState(true);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [klineData, setKlineData] = useState<KLineData[]>([]);
+  const [klineLoading, setKlineLoading] = useState(false);
 
   useEffect(() => {
     const fetchB1Signals = async () => {
@@ -81,6 +83,44 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
 
     return result;
   }, [stocks, backtestPool]);
+
+  // 当选中股票变化时，加载真实 K 线数据
+  useEffect(() => {
+    if (!selectedStock) {
+      setKlineData([]);
+      return;
+    }
+    const fetchKline = async () => {
+      try {
+        setKlineLoading(true);
+        // 尝试还原 ts_code（加回交易所后缀）
+        const tsCode = selectedStock.code.endsWith('.SH') || selectedStock.code.endsWith('.SZ')
+          ? selectedStock.code
+          : selectedStock.code.startsWith('6') ? `${selectedStock.code}.SH` : `${selectedStock.code}.SZ`;
+        const response = await b1SignalService.getStockDetail(tsCode);
+        if (response.success && response.data && response.data.kline && response.data.kline.length > 0) {
+          const kline: KLineData[] = response.data.kline.map((item: { time: string | null; open: number | null; high: number | null; low: number | null; close: number | null; volume: number | null }) => ({
+            time: item.time && /^\d{8}$/.test(item.time)
+              ? `${item.time.slice(0, 4)}-${item.time.slice(4, 6)}-${item.time.slice(6, 8)}`
+              : (item.time ?? ''),
+            open: item.open ?? 0,
+            high: item.high ?? 0,
+            low: item.low ?? 0,
+            close: item.close ?? 0,
+            volume: item.volume ?? 0,
+          }));
+          setKlineData(kline);
+        } else {
+          setKlineData(generateKLineData(selectedStock.addedPrice));
+        }
+      } catch {
+        setKlineData(generateKLineData(selectedStock.addedPrice));
+      } finally {
+        setKlineLoading(false);
+      }
+    };
+    fetchKline();
+  }, [selectedStock]);
 
   // 排序逻辑
   const sortedStocks = useMemo(() => {
@@ -340,12 +380,16 @@ export default function ObservationDashboard({ backtestPool }: ObservationDashbo
                 </p>
               </div>
               
-              <KLineChart
-                stockCode={selectedStock.code}
-                stockName={selectedStock.name}
-                data={generateKLineData(selectedStock.addedPrice)}
-                entryDate={selectedStock.addedDate}
-              />
+              {klineLoading ? (
+                <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">K线图加载中...</div>
+              ) : (
+                <KLineChart
+                  stockCode={selectedStock.code}
+                  stockName={selectedStock.name}
+                  data={klineData}
+                  entryDate={selectedStock.addedDate}
+                />
+              )}
             </>
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">

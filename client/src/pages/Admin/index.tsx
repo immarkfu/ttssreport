@@ -60,7 +60,7 @@ interface UserStat {
   avg_pct_change: number | null;
 }
 
-type Tab = 'overview' | 'users' | 'watchlist';
+type Tab = 'overview' | 'users' | 'watchlist' | 'backfill';
 
 export default function Admin() {
   const { token, isAdmin } = useAuth();
@@ -73,6 +73,9 @@ export default function Admin() {
   const [userStats, setUserStats] = useState<UserStat[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
+  const [backfillError, setBackfillError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -143,6 +146,7 @@ export default function Admin() {
           { key: 'overview', label: 'PV/UV 概览' },
           { key: 'users', label: '用户管理' },
           { key: 'watchlist', label: '观察池表现' },
+          { key: 'backfill', label: '数据补拉' },
         ] as { key: Tab; label: string }[]).map(({ key, label }) => (
           <button
             key={key}
@@ -387,6 +391,119 @@ export default function Admin() {
                     </table>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* 数据补拉 */}
+          {tab === 'backfill' && (
+            <div className="max-w-2xl">
+              <h2 className="text-lg font-semibold mb-4">数据补拉与信号重算</h2>
+              <p className="text-sm text-gray-500 mb-6">
+                当每日自动调度未运行或数据断更时，可手动触发补拉。系统会自动检测最新已入库日期，逐日补拉到最新交易日。
+              </p>
+
+              {backfillResult && (
+                <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-4 text-sm">
+                  {backfillResult}
+                </div>
+              )}
+              {backfillError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 text-sm">
+                  {backfillError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div className="border rounded-lg p-5 bg-white shadow-sm">
+                  <h3 className="font-medium mb-1">行情数据补拉</h3>
+                  <p className="text-xs text-gray-400 mb-4">从 bak_daily_data 和 stk_factor_pro_data 最新日期起，补拉到最新交易日</p>
+                  <button
+                    disabled={backfillLoading}
+                    onClick={async () => {
+                      setBackfillLoading(true);
+                      setBackfillResult(null);
+                      setBackfillError(null);
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/admin/trigger-backfill`, {
+                          method: 'POST',
+                          headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ type: 'market_data' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail ?? '补拉失败');
+                        setBackfillResult(`行情数据补拉已启动：${data.message}`);
+                      } catch (e: any) {
+                        setBackfillError(e.message);
+                      } finally {
+                        setBackfillLoading(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {backfillLoading ? '处理中...' : '启动行情补拉'}
+                  </button>
+                </div>
+
+                <div className="border rounded-lg p-5 bg-white shadow-sm">
+                  <h3 className="font-medium mb-1">B1 信号重算</h3>
+                  <p className="text-xs text-gray-400 mb-4">基于最新行情数据，重新计算缺失日期的 B1 信号（KDJ J值 &lt; 13 等条件）</p>
+                  <button
+                    disabled={backfillLoading}
+                    onClick={async () => {
+                      setBackfillLoading(true);
+                      setBackfillResult(null);
+                      setBackfillError(null);
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/admin/trigger-backfill`, {
+                          method: 'POST',
+                          headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ type: 'b1_signal' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail ?? '重算失败');
+                        setBackfillResult(`B1 信号重算已启动：${data.message}`);
+                      } catch (e: any) {
+                        setBackfillError(e.message);
+                      } finally {
+                        setBackfillLoading(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-amber-600 text-white rounded text-sm hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {backfillLoading ? '处理中...' : '启动 B1 重算'}
+                  </button>
+                </div>
+
+                <div className="border rounded-lg p-5 bg-white shadow-sm">
+                  <h3 className="font-medium mb-1">一键全量补拉</h3>
+                  <p className="text-xs text-gray-400 mb-4">先补拉行情数据，再重算 B1 信号（顺序执行）</p>
+                  <button
+                    disabled={backfillLoading}
+                    onClick={async () => {
+                      setBackfillLoading(true);
+                      setBackfillResult(null);
+                      setBackfillError(null);
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/admin/trigger-backfill`, {
+                          method: 'POST',
+                          headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ type: 'all' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.detail ?? '全量补拉失败');
+                        setBackfillResult(`全量补拉已启动：${data.message}`);
+                      } catch (e: any) {
+                        setBackfillError(e.message);
+                      } finally {
+                        setBackfillLoading(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {backfillLoading ? '处理中...' : '一键全量补拉'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

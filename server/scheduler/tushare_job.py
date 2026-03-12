@@ -883,6 +883,68 @@ class TushareDataIntegrator:
             logger.error(f"数据集成失败: {str(e)}\n{traceback.format_exc()}")
             raise
 
+    def backfill_missing_dates(self, start_date: str = None, end_date: str = None) -> Dict:
+        """
+        批量补拉缺失日期的数据（用于补全历史数据缺口）
+        Args:
+            start_date: 开始日期(YYYYMMDD)，默认从数据库最新日期的下一个交易日开始
+            end_date: 结束日期(YYYYMMDD)，默认为今天
+        Returns:
+            补拉结果字典
+        """
+        if end_date is None:
+            end_date = datetime.now().strftime('%Y%m%d')
+
+        if start_date is None:
+            # 从数据库中找最新日期
+            with self.engine.connect() as conn:
+                result = conn.execute(text("SELECT MAX(trade_date) FROM bak_daily_data"))
+                latest = result.fetchone()[0]
+                if latest:
+                    # 从最新日期的下一个交易日开始
+                    latest_dt = datetime.strptime(str(latest), '%Y%m%d')
+                    next_dt = latest_dt + timedelta(days=1)
+                    start_date = next_dt.strftime('%Y%m%d')
+                else:
+                    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
+
+        logger.info(f"开始批量补拉数据：{start_date} ~ {end_date}")
+
+        # 获取需要补拉的交易日列表
+        try:
+            trade_dates = self.get_trade_cal(start_date, end_date)
+        except Exception as e:
+            logger.error(f"获取交易日历失败: {e}")
+            return {'success': False, 'error': str(e), 'dates': []}
+
+        if not trade_dates:
+            logger.info("没有需要补拉的交易日")
+            return {'success': True, 'message': '没有需要补拉的交易日', 'dates': []}
+
+        logger.info(f"共需补拉 {len(trade_dates)} 个交易日: {trade_dates}")
+
+        results = []
+        for trade_date in trade_dates:
+            try:
+                logger.info(f"补拉 {trade_date} 的数据...")
+                result = self.integrate_daily_data(trade_date)
+                results.append({'date': trade_date, 'result': result, 'success': True})
+                logger.info(f"{trade_date} 数据补拉完成")
+                time.sleep(1)  # 避免 tushare API 限流
+            except Exception as e:
+                logger.error(f"{trade_date} 数据补拉失败: {e}")
+                results.append({'date': trade_date, 'error': str(e), 'success': False})
+
+        success_count = sum(1 for r in results if r['success'])
+        logger.info(f"批量补拉完成：{success_count}/{len(trade_dates)} 个交易日成功")
+        return {
+            'success': True,
+            'total': len(trade_dates),
+            'success_count': success_count,
+            'dates': trade_dates,
+            'results': results
+        }
+
     def close(self):
         """关闭数据库连接"""
         if self.engine:

@@ -1,31 +1,25 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
+# 基于预构建的基础镜像（已包含 tushare/pandas/numpy/volcengine_sdk 等大包）
+# 基础镜像只在大包版本变更时才需要重新构建
+FROM ttssreport-cn-beijing.cr.volces.com/ttssreport-1/ttssreport-backend-base:latest
 
 WORKDIR /app
-
-# 安装系统依赖
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
 COPY server/requirements.txt /app/requirements.txt
 
-# 配置 pip 使用阿里云镜像源（加速国内网络下的依赖安装）
-RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
-    pip config set global.trusted-host mirrors.aliyun.com
-
-# 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt
+# 只安装基础镜像中没有的轻量依赖（速度极快）
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --index-url https://mirrors.aliyun.com/pypi/simple/ \
+                --trusted-host mirrors.aliyun.com \
+                -r requirements.txt
 
 # 复制后端代码
 COPY server/ /app/
 
-# 创建日志目录（防止 tushare_job.py 启动时报 FileNotFoundError）
+# 创建日志目录
 RUN mkdir -p /app/logs
 
-# 暴露端口
 EXPOSE 8000
 
-# 启动命令
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

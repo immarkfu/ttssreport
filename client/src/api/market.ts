@@ -37,6 +37,28 @@ export const useMarketOverview = () => {
   });
 };
 
+export interface MarketTrendDay {
+  trade_date: string;
+  up_count: number;
+  down_count: number;
+  flat_count: number;
+  avg_pct: number;
+  total_amount_yi: number;
+}
+
+export const useMarketTrend = (days = 30) => {
+  return useQuery<{ data: MarketTrendDay[]; days: number }>({
+    queryKey: ['marketTrend', days],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/v1/market/market-trend?days=${days}`);
+      if (!res.ok) throw new Error('Failed to fetch market trend');
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+  });
+};
+
 export const useSignalDistribution = () => {
   return useQuery<SignalDistribution>({
     queryKey: ['signalDistribution'],

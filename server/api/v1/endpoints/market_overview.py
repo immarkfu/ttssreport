@@ -221,3 +221,51 @@ def _empty_overview():
         "yesterdayWinRate": 0,
         "winRateCondition": "次日涨幅 > 1%"
     }
+
+
+@router.get("/market-trend")
+async def get_market_trend(days: int = 30, db=Depends(get_db)):
+    """
+    获取近 N 个交易日的市场涨跌趋势数据（用于仪表盘大盘走势图）
+    返回每日：涨家数、跌家数、平家数、平均涨跌幅、总成交额
+    注：bak_daily_data 仅含个股数据，无上证指数，故用全市场涨跌统计代替
+    """
+    try:
+        async with db.cursor() as cursor:
+            await cursor.execute(
+                """
+                SELECT
+                    trade_date,
+                    SUM(CASE WHEN pct_change > 0 THEN 1 ELSE 0 END)  AS up_count,
+                    SUM(CASE WHEN pct_change < 0 THEN 1 ELSE 0 END)  AS down_count,
+                    SUM(CASE WHEN pct_change = 0 THEN 1 ELSE 0 END)  AS flat_count,
+                    ROUND(AVG(pct_change), 2)                         AS avg_pct,
+                    ROUND(SUM(amount) / 100000000, 2)                 AS total_amount_yi
+                FROM bak_daily_data
+                WHERE trade_date IN (
+                    SELECT DISTINCT trade_date FROM bak_daily_data
+                    ORDER BY trade_date DESC
+                    LIMIT %s
+                )
+                GROUP BY trade_date
+                ORDER BY trade_date ASC
+                """,
+                (days,)
+            )
+            rows = await cursor.fetchall()
+            cols = [d[0] for d in cursor.description]
+            result = []
+            for r in rows:
+                row_dict = dict(zip(cols, r))
+                row_dict['trade_date'] = str(row_dict['trade_date'])
+                row_dict['up_count'] = int(row_dict['up_count'] or 0)
+                row_dict['down_count'] = int(row_dict['down_count'] or 0)
+                row_dict['flat_count'] = int(row_dict['flat_count'] or 0)
+                row_dict['avg_pct'] = float(row_dict['avg_pct'] or 0)
+                row_dict['total_amount_yi'] = float(row_dict['total_amount_yi'] or 0)
+                result.append(row_dict)
+            return {"data": result, "days": days}
+
+    except Exception as e:
+        logger.error(f"获取市场趋势数据失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

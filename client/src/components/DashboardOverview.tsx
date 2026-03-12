@@ -2,14 +2,11 @@
  * 仪表盘概览组件
  * 设计风格：功能主义 - 市场全景数据展示
  * 支持卡片下钻：今日B1 -> B1观察页面，持仓卖出预警 -> S1卖出页面
- * 新增：上证指数K线图（日K线+成交量+KDJ）
+ * 大盘走势：基于 bak_daily_data 全市场涨跌统计（无上证指数数据）
  */
 
-import { useState, useEffect } from 'react';
-import { generateKLineData } from '@/data/mockData';
-import { useMarketOverview, useSignalDistribution } from '@/api/market';
+import { useMarketOverview, useSignalDistribution, useMarketTrend } from '@/api/market';
 import StatCard from './StatCard';
-import KLineChart from './charts/KLineChart';
 import {
   TrendingUp,
   TrendingDown,
@@ -22,6 +19,13 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
 } from 'recharts';
 
 interface DashboardOverviewProps {
@@ -29,17 +33,10 @@ interface DashboardOverviewProps {
 }
 
 export default function DashboardOverview({ onNavigate }: DashboardOverviewProps) {
-  const [indexKLineData, setIndexKLineData] = useState<ReturnType<typeof generateKLineData>>([]);
-
   // 使用真实API获取数据
   const { data: marketOverview, isLoading: isLoadingOverview, error: overviewError } = useMarketOverview();
   const { data: signalDistribution, isLoading: isLoadingDistribution } = useSignalDistribution();
-
-  // 生成上证指数K线数据（基准价格3000点左右）
-  useEffect(() => {
-    const data = generateKLineData(3000, 60);
-    setIndexKLineData(data);
-  }, []);
+  const { data: marketTrend, isLoading: isLoadingTrend } = useMarketTrend(30);
 
   // 信号强度分布数据（使用真实数据或默认值）
   const signalData = [
@@ -79,6 +76,19 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
     medium: 0,
     pool: 0
   };
+
+  // 格式化日期显示（YYYYMMDD -> MM/DD）
+  const formatDate = (dateStr: string) => {
+    if (!dateStr || dateStr.length < 8) return dateStr;
+    return `${dateStr.slice(4, 6)}/${dateStr.slice(6, 8)}`;
+  };
+
+  const trendData = (marketTrend?.data || []).map(d => ({
+    date: formatDate(d.trade_date),
+    涨家数: d.up_count,
+    跌家数: -d.down_count,  // 负值让柱状图向下
+    平均涨跌幅: d.avg_pct,
+  }));
 
   return (
     <div className="space-y-6">
@@ -132,30 +142,50 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
           icon={Target}
           variant="success"
         />
-
       </div>
 
       {/* 图表区域 */}
       <div className="grid grid-cols-3 gap-6">
-        {/* 上证指数K线图 */}
+        {/* 大盘涨跌趋势图（替代无数据的上证指数K线） */}
         <div className="col-span-2 bg-card rounded-lg border border-border/50 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-medium">上证指数大盘走势</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">日K线 + 成交量 + KDJ指标</p>
+              <h3 className="font-medium">全市场涨跌趋势</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">近30个交易日 · 涨跌家数 + 平均涨跌幅</p>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>近60个交易日</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />涨家数</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" />跌家数</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />平均涨跌幅%</span>
             </div>
           </div>
-          
-          {/* K线图组件 */}
-          <div className="h-[480px]">
-            <KLineChart
-              data={indexKLineData}
-              stockName="上证指数"
-              stockCode="000001"
-            />
+
+          <div className="h-[400px]">
+            {isLoadingTrend ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">加载中...</div>
+            ) : trendData.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">暂无数据</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={trendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                  <Tooltip
+                    formatter={(value: number, name: string) => {
+                      if (name === '跌家数') return [`${Math.abs(value)}家`, name];
+                      if (name === '平均涨跌幅') return [`${value}%`, name];
+                      return [`${value}家`, name];
+                    }}
+                  />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="涨家数" fill="#22C55E" opacity={0.8} />
+                  <Bar yAxisId="left" dataKey="跌家数" fill="#F87171" opacity={0.8} />
+                  <Line yAxisId="right" type="monotone" dataKey="平均涨跌幅" stroke="#60A5FA" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -165,7 +195,7 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
           <div className="bg-card rounded-lg border border-border/50 p-5">
             <h3 className="font-medium text-sm mb-3">今日B1信号全景分析</h3>
             <p className="text-xs text-muted-foreground mb-4">强度分布 (Signal Intensity)</p>
-            
+
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -219,8 +249,6 @@ export default function DashboardOverview({ onNavigate }: DashboardOverviewProps
               </div>
             </div>
           </div>
-
-
         </div>
       </div>
 

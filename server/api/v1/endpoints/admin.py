@@ -400,3 +400,119 @@ async def delete_tag_config(
         )
         await db.commit()
         return {"success": True, "message": "标签删除成功"}
+
+
+# ─── 数据补拉与信号补算 ────────────────────────────────────────────
+
+class BackfillRequest(BaseModel):
+    start_date: Optional[str] = None  # YYYYMMDD，不填则从数据库最新日期自动推算
+    end_date: Optional[str] = None    # YYYYMMDD，不填则到今天
+
+
+@router.post("/backfill/data")
+async def trigger_data_backfill(
+    req: BackfillRequest,
+    admin: dict = Depends(require_admin),
+):
+    """
+    触发 tushare 数据增量补拉（异步后台执行）
+    - 不填日期时，自动从数据库最新日期补拉到今天
+    - 每个交易日约需 30-60 秒，请耐心等待
+    """
+    import threading
+    from scheduler.tushare_job import TushareDataIntegrator
+    from core.config import settings
+
+    def _run():
+        integrator = TushareDataIntegrator(
+            tushare_token=settings.TUSHARE_TOKEN,
+            db_config=settings.db_config
+        )
+        try:
+            result = integrator.backfill_missing_dates(
+                start_date=req.start_date,
+                end_date=req.end_date
+            )
+            import logging
+            logging.getLogger(__name__).info(f"数据补拉完成: {result}")
+        finally:
+            integrator.close()
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    return {
+        "success": True,
+        "message": "数据补拉任务已在后台启动，请查看服务器日志了解进度",
+        "start_date": req.start_date or "自动推算",
+        "end_date": req.end_date or "今天"
+    }
+
+
+@router.post("/backfill/b1-signals")
+async def trigger_b1_backfill(
+    req: BackfillRequest,
+    admin: dict = Depends(require_admin),
+):
+    """
+    触发 B1 信号批量补算（异步后台执行）
+    - 不填日期时，自动从 b1_signal_results 最新日期补算到 bak_daily_data 最新日期
+    - 每个交易日约需 10-30 秒
+    """
+    import threading
+    from scheduler.b1_signal_job import backfill_b1_signals
+
+    def _run():
+        result = backfill_b1_signals(
+            start_date=req.start_date,
+            end_date=req.end_date
+        )
+        import logging
+        logging.getLogger(__name__).info(f"B1信号补算完成: {result}")
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    return {
+        "success": True,
+        "message": "B1信号补算任务已在后台启动，请查看服务器日志了解进度",
+        "start_date": req.start_date or "自动推算",
+        "end_date": req.end_date or "bak_daily_data最新日期"
+    }
+
+
+@router.get("/data-status")
+async def get_data_status(
+    admin: dict = Depends(require_admin),
+    db=Depends(get_db)
+):
+    """查看各数据表的最新日期和数据量，用于判断是否需要补拉"""
+    async with db.cursor() as cursor:
+        await cursor.execute(
+            "SELECT MAX(trade_date) as latest, MIN(trade_date) as earliest, COUNT(*) as total FROM bak_daily_data"
+        )
+        bak = dict(zip([d[0] for d in cursor.description], await cursor.fetchone()))
+
+        await cursor.execute(
+            "SELECT MAX(trade_date) as latest, MIN(trade_date) as earliest, COUNT(*) as total FROM stk_factor_pro_data"
+        )
+        stk = dict(zip([d[0] for d in cursor.description], await cursor.fetchone()))
+
+        await cursor.execute(
+            "SELECT MAX(trade_date) as latest, MIN(trade_date) as earliest, COUNT(*) as total FROM b1_signal_results"
+        )
+        b1 = dict(zip([d[0] for d in cursor.description], await cursor.fetchone()))
+
+        await cursor.execute(
+            "SELECT trade_date, signal_type, status, matched_stocks, duration_seconds FROM signal_calculation_log ORDER BY created_at DESC LIMIT 10"
+        )
+        rows = await cursor.fetchall()
+        cols = [d[0] for d in cursor.description]
+        recent_logs = [dict(zip(cols, r)) for r in rows]
+
+    return {
+        "bak_daily_data": bak,
+        "stk_factor_pro_data": stk,
+        "b1_signal_results": b1,
+        "recent_signal_logs": recent_logs
+    }
