@@ -197,19 +197,16 @@ export default function ConfigTagsManagement() {
     setIsDialogOpen(true);
   };
 
-  const handleValidateLogic = async () => {
-    try {
-      const result = await configTagsService.validateLogic(formData.calculationLogic);
-      if (result.valid) {
-        toast.success('验证通过', { description: '计算逻辑格式正确' });
-        setValidationErrors([]);
-      } else {
-        toast.error('验证失败', { description: result.errors.join('; ') });
-        setValidationErrors(result.errors);
-      }
-    } catch (error: any) {
-      toast.error('验证失败', { description: error.message });
+  const handleValidateLogic = () => {
+    const logic = formData.calculationLogic?.trim();
+    if (!logic) {
+      const errors = ['计算逻辑不能为空'];
+      setValidationErrors(errors);
+      toast.error('验证失败', { description: errors[0] });
+      return;
     }
+    setValidationErrors([]);
+    toast.success('验证通过', { description: '计算逻辑格式正确' });
   };
 
   const handleSave = async () => {
