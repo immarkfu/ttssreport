@@ -9,10 +9,6 @@ on:
 env:
   NODE_VERSION: '22'
   PYTHON_VERSION: '3.11'
-  VOLCES_REGISTRY: ttssreport-cn-beijing.cr.volces.com
-  VOLCES_NAMESPACE: ttssreport-1
-  BACKEND_IMAGE: ttssreport-backend
-  FRONTEND_IMAGE: ttssreport-frontend
 
 jobs:
   # ─── 前端构建检查 ────────────────────────────────────────────────
@@ -89,9 +85,9 @@ jobs:
         env:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
 
-  # ─── 构建镜像并推送到火山云镜像仓库 ─────────────────────────────
-  docker:
-    name: Build & Push to Volces CR
+  # ─── SSH 部署到现网服务器（在服务器本地构建镜像）─────────────────
+  deploy:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     needs: [frontend, backend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -99,49 +95,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Volces Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.VOLCES_REGISTRY }}
-          username: ${{ secrets.VOLCES_USERNAME }}
-          password: ${{ secrets.VOLCES_PASSWORD }}
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v5
-        timeout-minutes: 60
-        with:
-          context: .
-          file: ./Dockerfile.backend
-          push: true
-          tags: |
-            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:latest
-            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v5
-        timeout-minutes: 10
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:latest
-            ${{ env.VOLCES_REGISTRY }}/${{ env.VOLCES_NAMESPACE }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ─── SSH 部署到现网服务器 ────────────────────────────────────────
-  deploy:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: [docker]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
       - name: Install SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -150,10 +103,23 @@ jobs:
       - name: Add server to known hosts
         run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Write compose file and deploy
+      - name: Package and transfer code to server
+        run: |
+          # 打包代码（排除 node_modules 和 .git）
+          tar --exclude='.git' \
+              --exclude='client/node_modules' \
+              --exclude='client/dist' \
+              --exclude='__pycache__' \
+              --exclude='*.pyc' \
+              -czf /tmp/ttssreport.tar.gz .
+          
+          echo "Package size: $(du -sh /tmp/ttssreport.tar.gz | cut -f1)"
+          
+          # 传输到服务器
+          scp /tmp/ttssreport.tar.gz ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/ttssreport.tar.gz
+
+      - name: Build and deploy on server
         env:
-          VOLCES_USERNAME: ${{ secrets.VOLCES_USERNAME }}
-          VOLCES_PASSWORD: ${{ secrets.VOLCES_PASSWORD }}
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_PORT: ${{ secrets.DB_PORT }}
           DB_USER: ${{ secrets.DB_USER }}
@@ -166,10 +132,8 @@ jobs:
           VOLCENGINE_SMS_SIGN_NAME: ${{ secrets.VOLCENGINE_SMS_SIGN_NAME }}
           VOLCENGINE_SMS_TEMPLATE_ID: ${{ secrets.VOLCENGINE_SMS_TEMPLATE_ID }}
         run: |
-          # 通过 SSH 将 compose 文件和环境变量安全地写入服务器
+          # 写入 .env 文件到服务器
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "mkdir -p /root/ttssreport"
-
-          # 写入 .env 文件（敏感信息通过 SSH 管道传输，不落地到 CI 日志）
           ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cat > /root/ttssreport/.env" << ENVEOF
           DB_HOST=${DB_HOST}
           DB_PORT=${DB_PORT:-3306}
@@ -183,12 +147,35 @@ jobs:
           VOLCENGINE_SMS_SIGN_NAME=${VOLCENGINE_SMS_SIGN_NAME}
           VOLCENGINE_SMS_TEMPLATE_ID=${VOLCENGINE_SMS_TEMPLATE_ID}
           ENVEOF
-
-          # 写入 docker-compose.prod.yml（无敏感信息，通过 env_file 引用）
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cat > /root/ttssreport/docker-compose.prod.yml" << 'COMPOSEEOF'
+          
+          # 在服务器上解压代码并构建镜像
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash << 'SSHEOF'
+            set -e
+            echo "=== 解压代码 ==="
+            mkdir -p /root/ttssreport/src
+            tar -xzf /tmp/ttssreport.tar.gz -C /root/ttssreport/src
+            rm -f /tmp/ttssreport.tar.gz
+            
+            echo "=== 构建后端镜像（使用国内 pip 镜像源）==="
+            cd /root/ttssreport/src
+            docker build \
+              --build-arg PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+              --build-arg PIP_TRUSTED_HOST=mirrors.aliyun.com \
+              -f Dockerfile.backend \
+              -t ttssreport-backend:latest \
+              . 2>&1 | tail -20
+            
+            echo "=== 构建前端镜像 ==="
+            docker build \
+              -f Dockerfile \
+              -t ttssreport-frontend:latest \
+              . 2>&1 | tail -10
+            
+            echo "=== 写入 docker-compose.prod.yml ==="
+            cat > /root/ttssreport/docker-compose.prod.yml << 'COMPOSEEOF'
           services:
             backend:
-              image: ttssreport-cn-beijing.cr.volces.com/ttssreport-1/ttssreport-backend:latest
+              image: ttssreport-backend:latest
               container_name: ttssreport-backend
               restart: unless-stopped
               env_file:
@@ -199,7 +186,7 @@ jobs:
                 - backend_logs:/app/logs
 
             frontend:
-              image: ttssreport-cn-beijing.cr.volces.com/ttssreport-1/ttssreport-frontend:latest
+              image: ttssreport-frontend:latest
               container_name: ttssreport-frontend
               restart: unless-stopped
               depends_on:
@@ -211,40 +198,17 @@ jobs:
             backend_logs:
               driver: local
           COMPOSEEOF
-
-          # 执行部署
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash << 'SSHEOF'
-            set -e
-            REGISTRY="ttssreport-cn-beijing.cr.volces.com"
-            NAMESPACE="ttssreport-1"
-
-            echo "=== 登录火山云镜像仓库 ==="
-            # 从 .env 读取凭证（不在 CI 日志中暴露）
-            source /root/ttssreport/.env 2>/dev/null || true
-            echo "${VOLCES_PASSWORD:-}" | docker login ${REGISTRY} \
-              -u "${VOLCES_USERNAME:-}" --password-stdin 2>/dev/null || true
-          SSHEOF
-
-          # 单独传入镜像仓库凭证用于 pull
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "echo '${VOLCES_PASSWORD}' | docker login ttssreport-cn-beijing.cr.volces.com -u '${VOLCES_USERNAME}' --password-stdin"
-
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash << 'SSHEOF'
-            set -e
-            echo "=== 拉取最新镜像 ==="
-            docker pull ttssreport-cn-beijing.cr.volces.com/ttssreport-1/ttssreport-backend:latest
-            docker pull ttssreport-cn-beijing.cr.volces.com/ttssreport-1/ttssreport-frontend:latest
-
+            
             echo "=== 重启服务 ==="
             docker compose -f /root/ttssreport/docker-compose.prod.yml down --remove-orphans || true
             docker compose -f /root/ttssreport/docker-compose.prod.yml up -d
-
+            
             echo "=== 清理旧镜像 ==="
             docker image prune -f
-
+            
             echo "=== 服务状态 ==="
             docker compose -f /root/ttssreport/docker-compose.prod.yml ps
-
+            
             echo "✅ 部署完成！"
           SSHEOF
 

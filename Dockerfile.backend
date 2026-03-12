@@ -2,40 +2,26 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# 支持通过 build-arg 传入 pip 镜像源（服务器本地构建时使用国内镜像）
+ARG PIP_INDEX_URL=https://pypi.org/simple/
+ARG PIP_TRUSTED_HOST=pypi.org
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# 第一层：安装体积最大的包（变化频率最低，缓存命中率最高）
-# tushare + pandas + numpy + volcengine_python_sdk 合计约 400MB
-RUN pip install --no-cache-dir \
-    --index-url https://pypi.org/simple/ \
-    tushare==1.4.4 \
-    pandas==2.1.4 \
-    numpy==1.26.2 \
-    volcengine_python_sdk==5.0.7
+# 复制依赖文件
+COPY server/requirements.txt /app/requirements.txt
 
-# 第二层：安装其余依赖（体积小，安装快）
+# 安装所有依赖（使用传入的镜像源）
 RUN pip install --no-cache-dir \
-    --index-url https://pypi.org/simple/ \
-    fastapi==0.104.1 \
-    uvicorn==0.24.0 \
-    aiomysql==0.2.0 \
-    pydantic==2.5.0 \
-    "pydantic-settings==2.1.0" \
-    "python-jose[cryptography]==3.3.0" \
-    "passlib[bcrypt]==1.7.4" \
-    python-multipart==0.0.6 \
-    pyjwt==2.8.0 \
-    pymysql==1.1.0 \
-    DBUtils==3.1.0 \
-    sqlalchemy==2.0.23 \
-    schedule==1.2.0 \
-    httpx==0.25.2
+    --index-url ${PIP_INDEX_URL} \
+    --trusted-host ${PIP_TRUSTED_HOST} \
+    -r /app/requirements.txt
 
-# 复制后端代码（代码变化不影响依赖层缓存）
+# 复制后端代码
 COPY server/ /app/
 
 # 创建日志目录
