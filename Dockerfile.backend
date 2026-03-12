@@ -8,16 +8,34 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# 先复制依赖文件（利用 Docker 层缓存：只有 requirements.txt 变化时才重新安装）
-COPY server/requirements.txt /app/requirements.txt
-
-# 安装 Python 依赖（使用阿里云镜像源加速）
+# 第一层：安装体积最大的包（变化频率最低，缓存命中率最高）
+# tushare + pandas + numpy + volcengine_python_sdk 合计约 400MB
 RUN pip install --no-cache-dir \
-    --index-url https://mirrors.aliyun.com/pypi/simple/ \
-    --trusted-host mirrors.aliyun.com \
-    -r requirements.txt
+    --index-url https://pypi.org/simple/ \
+    tushare==1.4.4 \
+    pandas==2.1.4 \
+    numpy==1.26.2 \
+    volcengine_python_sdk==5.0.7
 
-# 复制后端代码
+# 第二层：安装其余依赖（体积小，安装快）
+RUN pip install --no-cache-dir \
+    --index-url https://pypi.org/simple/ \
+    fastapi==0.104.1 \
+    uvicorn==0.24.0 \
+    aiomysql==0.2.0 \
+    pydantic==2.5.0 \
+    "pydantic-settings==2.1.0" \
+    "python-jose[cryptography]==3.3.0" \
+    "passlib[bcrypt]==1.7.4" \
+    python-multipart==0.0.6 \
+    pyjwt==2.8.0 \
+    pymysql==1.1.0 \
+    DBUtils==3.1.0 \
+    sqlalchemy==2.0.23 \
+    schedule==1.2.0 \
+    httpx==0.25.2
+
+# 复制后端代码（代码变化不影响依赖层缓存）
 COPY server/ /app/
 
 # 创建日志目录

@@ -111,7 +111,7 @@ jobs:
 
       - name: Build and push backend image
         uses: docker/build-push-action@v5
-        timeout-minutes: 40
+        timeout-minutes: 60
         with:
           context: .
           file: ./Dockerfile.backend
