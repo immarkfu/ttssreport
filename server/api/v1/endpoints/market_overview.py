@@ -22,7 +22,7 @@ async def get_market_overview(db=Depends(get_db)):
     """
     try:
         async with db.cursor() as cursor:
-            # ── 最新交易日 ──
+            # ── 最新交易日（bak_daily_data.trade_date 为 varchar(8)，如 '20260312'）──
             await cursor.execute(
                 "SELECT MAX(trade_date) FROM bak_daily_data"
             )
@@ -30,7 +30,7 @@ async def get_market_overview(db=Depends(get_db)):
             if not row or not row[0]:
                 return _empty_overview()
 
-            latest_date = row[0]
+            latest_date = row[0]  # varchar，如 '20260312'
 
             # ── 当日市场统计 ──
             await cursor.execute(
@@ -67,15 +67,19 @@ async def get_market_overview(db=Depends(get_db)):
 
             sentiment_change = round(float(avg_pct), 2) if avg_pct else 0
 
+            # ── B1 信号最新交易日（b1_signal_results.trade_date 为 date 类型）──
+            await cursor.execute("SELECT MAX(trade_date) FROM b1_signal_results")
+            b1_latest_row = await cursor.fetchone()
+            b1_latest_date = b1_latest_row[0] if b1_latest_row and b1_latest_row[0] else None
+
             # ── B1 信号统计（最新交易日） ──
-            await cursor.execute(
-                """
-                SELECT COUNT(*) FROM b1_signal_results
-                WHERE trade_date = %s
-                """,
-                (latest_date,)
-            )
-            b1_today = (await cursor.fetchone())[0] or 0
+            b1_today = 0
+            if b1_latest_date:
+                await cursor.execute(
+                    "SELECT COUNT(*) FROM b1_signal_results WHERE trade_date = %s",
+                    (b1_latest_date,)
+                )
+                b1_today = (await cursor.fetchone())[0] or 0
 
             # ── B1 信号历史总数 ──
             await cursor.execute("SELECT COUNT(*) FROM b1_signal_results")
@@ -86,18 +90,21 @@ async def get_market_overview(db=Depends(get_db)):
             monitor_pool_count = (await cursor.fetchone())[0] or 0
 
             # ── 昨日 B1 信号胜率（次日涨幅 > 1%） ──
+            # 取 b1_signal_results 倒数第二个交易日（即"昨日"）
             await cursor.execute(
                 """
-                SELECT trade_date FROM b1_signal_results
+                SELECT DISTINCT trade_date FROM b1_signal_results
                 ORDER BY trade_date DESC
-                LIMIT 1 OFFSET 1
+                LIMIT 2
                 """
             )
-            prev_row = await cursor.fetchone()
+            date_rows = await cursor.fetchall()
             yesterday_win_rate = 0.0
 
-            if prev_row:
-                prev_date = prev_row[0]
+            if len(date_rows) >= 2:
+                prev_date = date_rows[1][0]  # 倒数第二个交易日
+                # bak_daily_data.trade_date 是 varchar(8)，需要用 DATE_FORMAT 或 STR_TO_DATE 转换比较
+                # 找 b1 信号日期的次日（bak_daily_data 中大于 prev_date 的最小日期）
                 await cursor.execute(
                     """
                     SELECT
@@ -108,7 +115,7 @@ async def get_market_overview(db=Depends(get_db)):
                         ON d.ts_code = b.ts_code
                         AND d.trade_date = (
                             SELECT MIN(trade_date) FROM bak_daily_data
-                            WHERE trade_date > %s
+                            WHERE trade_date > DATE_FORMAT(%s, '%%Y%%m%%d')
                         )
                     WHERE b.trade_date = %s
                     """,
@@ -229,11 +236,29 @@ async def get_market_trend(days: int = 30, db=Depends(get_db)):
     获取近 N 个交易日的市场涨跌趋势数据（用于仪表盘大盘走势图）
     返回每日：涨家数、跌家数、平家数、平均涨跌幅、总成交额
     注：bak_daily_data 仅含个股数据，无上证指数，故用全市场涨跌统计代替
+    注：MySQL 5.7 不支持 LIMIT 在 IN 子查询中，改用 JOIN 方式
     """
     try:
         async with db.cursor() as cursor:
+            # 先获取最近 N 个交易日的日期列表
             await cursor.execute(
                 """
+                SELECT DISTINCT trade_date
+                FROM bak_daily_data
+                ORDER BY trade_date DESC
+                LIMIT %s
+                """,
+                (days,)
+            )
+            date_rows = await cursor.fetchall()
+            if not date_rows:
+                return {"data": [], "days": days}
+
+            date_list = [r[0] for r in date_rows]
+            placeholders = ','.join(['%s'] * len(date_list))
+
+            await cursor.execute(
+                f"""
                 SELECT
                     trade_date,
                     SUM(CASE WHEN pct_change > 0 THEN 1 ELSE 0 END)  AS up_count,
@@ -242,15 +267,11 @@ async def get_market_trend(days: int = 30, db=Depends(get_db)):
                     ROUND(AVG(pct_change), 2)                         AS avg_pct,
                     ROUND(SUM(amount) / 100000000, 2)                 AS total_amount_yi
                 FROM bak_daily_data
-                WHERE trade_date IN (
-                    SELECT DISTINCT trade_date FROM bak_daily_data
-                    ORDER BY trade_date DESC
-                    LIMIT %s
-                )
+                WHERE trade_date IN ({placeholders})
                 GROUP BY trade_date
                 ORDER BY trade_date ASC
                 """,
-                (days,)
+                date_list
             )
             rows = await cursor.fetchall()
             cols = [d[0] for d in cursor.description]
